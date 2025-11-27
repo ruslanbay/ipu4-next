@@ -16,12 +16,12 @@ sudo cp -rf IPU_binary/usr/* /usr
 ## 3. Build the libcamerahal package
 
 ```bash
-cd libcamerahal
-mkdir build
-cd build
-cmake ../
-make -j
-make package
+cd libcamerahal && \
+    mkdir build && \
+    cd build  && \
+    cmake ../  && \
+    make -j$(nproc) && \
+    make package
 ```
 
 ## 4. Install libcamhal

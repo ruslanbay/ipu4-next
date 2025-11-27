@@ -1,0 +1,26 @@
+From c995322f4cd25dab1fdd789e159ed070386575c6 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Tue, 25 Nov 2025 18:26:00 +0100
+Subject: [PATCH 9/9] IPU4: EXPORT_SYMBOL(find_vm_area) to avoid the following
+ error: modpost: "find_vm_area" [drivers/media/pci/intel/ipu4/intel-ipu4.ko]
+ undefined!
+
+---
+ mm/vmalloc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 4fac924ffdb0..8d1ee949a54a 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -2489,6 +2489,7 @@ struct vm_struct *find_vm_area(const void *addr)
+ 
+ 	return va->vm;
+ }
++EXPORT_SYMBOL(find_vm_area);
+ 
+ /**
+  * remove_vm_area - find and remove a continuous kernel virtual area
+-- 
+2.34.1
+

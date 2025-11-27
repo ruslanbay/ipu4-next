@@ -1,0 +1,1962 @@
+From c1dba95b03b0d692dcdd45599171a612c7a778f3 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 26 Nov 2025 13:43:36 +0100
+Subject: [PATCH] ref: Remove legacy code
+
+---
+ drivers/media/pci/intel/ipu-bus.c             |  13 +-
+ drivers/media/pci/intel/ipu-cpd.c             |  12 --
+ drivers/media/pci/intel/ipu-dma.c             |  52 --------
+ drivers/media/pci/intel/ipu-fw-com.c          |   8 --
+ .../media/pci/intel/ipu-isys-csi2-be-soc.c    |   6 -
+ drivers/media/pci/intel/ipu-isys-csi2-be.c    |   6 -
+ drivers/media/pci/intel/ipu-isys-csi2.c       |   6 -
+ drivers/media/pci/intel/ipu-isys-queue.c      | 117 +-----------------
+ drivers/media/pci/intel/ipu-isys-queue.h      |  20 ---
+ drivers/media/pci/intel/ipu-isys-subdev.c     |  88 -------------
+ drivers/media/pci/intel/ipu-isys-subdev.h     |  54 --------
+ drivers/media/pci/intel/ipu-isys-tpg.c        |  22 ----
+ drivers/media/pci/intel/ipu-isys-video.c      |  75 -----------
+ drivers/media/pci/intel/ipu-isys-video.h      |   6 -
+ drivers/media/pci/intel/ipu-isys.c            |  75 -----------
+ drivers/media/pci/intel/ipu-isys.h            |   3 -
+ drivers/media/pci/intel/ipu-psys.c            |  65 ----------
+ drivers/media/pci/intel/ipu-wrapper.c         |  12 --
+ drivers/media/pci/intel/ipu.c                 |  28 -----
+ drivers/media/pci/intel/ipu4/ipu4-isys-isa.c  |  52 --------
+ drivers/media/pci/intel/ipu4/ipu4-psys.c      |  16 ---
+ drivers/media/platform/intel/ipu4-acpi.c      |  11 --
+ 22 files changed, 6 insertions(+), 741 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu-bus.c b/drivers/media/pci/intel/ipu-bus.c
+index 03cf1cb0d918e..70548b1bfc46f 100644
+--- a/drivers/media/pci/intel/ipu-bus.c
++++ b/drivers/media/pci/intel/ipu-bus.c
+@@ -187,14 +187,9 @@ static struct ipu_dma_mapping *alloc_dma_mapping(struct device *dev)
+ 		kfree(dmap);
+ 		return NULL;
+ 	}
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+-	init_iova_domain(&dmap->iovad, dma_get_mask(dev) >> PAGE_SHIFT);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+-	init_iova_domain(&dmap->iovad, SZ_4K, 1,
+-			 dma_get_mask(dev) >> PAGE_SHIFT);
+-#else
++
+ 	init_iova_domain(&dmap->iovad, SZ_4K, 1);
+-#endif
++
+ 	dmap->mmu_info->dmap = dmap;
+ 
+ 	kref_init(&dmap->ref);
+@@ -327,11 +322,7 @@ struct ipu_bus_device *ipu_bus_add_device(struct pci_dev *pdev,
+ 	adev->dev.parent = parent;
+ 	adev->dev.bus = &ipu_bus;
+ 	adev->dev.release = ipu_bus_release;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 16)
+ 	adev->dev.dma_ops = &ipu_dma_ops;
+-#else
+-	adev->dev.archdata.dma_ops = &ipu_dma_ops;
+-#endif
+ 	adev->dma_mask = DMA_BIT_MASK(isp->secure_mode ?
+ 				      IPU_MMU_ADDRESS_BITS :
+ 				      IPU_MMU_ADDRESS_BITS_NON_SECURE);
+diff --git a/drivers/media/pci/intel/ipu-cpd.c b/drivers/media/pci/intel/ipu-cpd.c
+index 3833ce1b7519c..c3692a79c902d 100644
+--- a/drivers/media/pci/intel/ipu-cpd.c
++++ b/drivers/media/pci/intel/ipu-cpd.c
+@@ -209,11 +209,7 @@ void *ipu_cpd_create_pkg_dir(struct ipu_bus_device *adev,
+ 	*pkg_dir_size = PKG_DIR_SIZE + man_sz + met_sz;
+ 	pkg_dir = dma_alloc_attrs(&adev->dev, *pkg_dir_size, dma_addr,
+ 				  GFP_KERNEL,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-				  NULL
+-#else
+ 				  0
+-#endif
+ 	    );
+ 	if (!pkg_dir)
+ 		return pkg_dir;
+@@ -240,11 +236,7 @@ void *ipu_cpd_create_pkg_dir(struct ipu_bus_device *adev,
+ 			"Unable to parse module data section!\n");
+ 		dma_free_attrs(&isp->psys->dev, *pkg_dir_size, pkg_dir,
+ 			       *dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       NULL
+-#else
+ 			       0
+-#endif
+ 		    );
+ 		return NULL;
+ 	}
+@@ -268,11 +260,7 @@ void ipu_cpd_free_pkg_dir(struct ipu_bus_device *adev,
+ 			  u64 *pkg_dir,
+ 			  dma_addr_t dma_addr, unsigned int pkg_dir_size)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	dma_free_attrs(&adev->dev, pkg_dir_size, pkg_dir, dma_addr, NULL);
+-#else
+ 	dma_free_attrs(&adev->dev, pkg_dir_size, pkg_dir, dma_addr, 0);
+-#endif
+ }
+ EXPORT_SYMBOL_GPL(ipu_cpd_free_pkg_dir);
+ 
+diff --git a/drivers/media/pci/intel/ipu-dma.c b/drivers/media/pci/intel/ipu-dma.c
+index 96ce505714346..516a2205cf07b 100644
+--- a/drivers/media/pci/intel/ipu-dma.c
++++ b/drivers/media/pci/intel/ipu-dma.c
+@@ -20,11 +20,7 @@
+ 
+ /* Begin of things adapted from arch/arm/mm/dma-mapping.c */
+ static void __dma_clear_buffer(struct page *page, size_t size,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       struct dma_attrs *attrs
+-#else
+ 			       unsigned long attrs
+-#endif
+ 				)
+ {
+ 	/*
+@@ -36,11 +32,7 @@ static void __dma_clear_buffer(struct page *page, size_t size,
+ 			void *ptr = kmap_atomic(page);
+ 
+ 			memset(ptr, 0, PAGE_SIZE);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			if (!dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
+-#else
+ 			if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
+-#endif
+ 				clflush_cache_range(ptr, PAGE_SIZE);
+ 			kunmap_atomic(ptr);
+ 			page++;
+@@ -50,22 +42,14 @@ static void __dma_clear_buffer(struct page *page, size_t size,
+ 		void *ptr = page_address(page);
+ 
+ 		memset(ptr, 0, size);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-		if (!dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
+-#else
+ 		if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
+-#endif
+ 			clflush_cache_range(ptr, size);
+ 	}
+ }
+ 
+ static struct page **__dma_alloc_buffer(struct device *dev, size_t size,
+ 					  gfp_t gfp,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-					  struct dma_attrs *attrs
+-#else
+ 					  unsigned long attrs
+-#endif
+ 					)
+ {
+ 	struct page **pages;
+@@ -117,11 +101,7 @@ static struct page **__dma_alloc_buffer(struct device *dev, size_t size,
+ 
+ static int __dma_free_buffer(struct device *dev, struct page **pages,
+ 			       size_t size,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       struct dma_attrs *attrs
+-#else
+ 			       unsigned long attrs
+-#endif
+ 				)
+ {
+ 	int count = size >> PAGE_SHIFT;
+@@ -170,11 +150,7 @@ static void ipu_dma_sync_sg_for_cpu(struct device *dev,
+ 
+ static void *ipu_dma_alloc(struct device *dev, size_t size,
+ 			   dma_addr_t *dma_handle, gfp_t gfp,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			   struct dma_attrs *attrs
+-#else
+ 			   unsigned long attrs
+-#endif
+ 			)
+ {
+ 	struct device *aiommu = to_ipu_bus_device(dev)->iommu;
+@@ -234,11 +210,7 @@ static void *ipu_dma_alloc(struct device *dev, size_t size,
+ 
+ static void ipu_dma_free(struct device *dev, size_t size, void *vaddr,
+ 			 dma_addr_t dma_handle,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			 struct dma_attrs *attrs
+-#else
+ 			 unsigned long attrs
+-#endif
+ 			)
+ {
+ 	struct device *aiommu = to_ipu_bus_device(dev)->iommu;
+@@ -275,11 +247,7 @@ static void ipu_dma_free(struct device *dev, size_t size, void *vaddr,
+ 
+ static int ipu_dma_mmap(struct device *dev, struct vm_area_struct *vma,
+ 			void *addr, dma_addr_t iova, size_t size,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			struct dma_attrs *attrs
+-#else
+ 			unsigned long attrs
+-#endif
+ 			)
+ {
+ 	struct vm_struct *area = find_vm_area(addr);
+@@ -305,11 +273,7 @@ static int ipu_dma_mmap(struct device *dev, struct vm_area_struct *vma,
+ static void ipu_dma_unmap_sg(struct device *dev,
+ 			     struct scatterlist *sglist,
+ 			     int nents, enum dma_data_direction dir,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			     struct dma_attrs *attrs
+-#else
+ 			     unsigned long attrs
+-#endif
+ 			)
+ {
+ 	struct device *aiommu = to_ipu_bus_device(dev)->iommu;
+@@ -323,11 +287,7 @@ static void ipu_dma_unmap_sg(struct device *dev,
+ 	if (WARN_ON(!iova))
+ 		return;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	if (!dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
+-#else
+ 	if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
+-#endif
+ 		ipu_dma_sync_sg_for_cpu(dev, sglist, nents, DMA_BIDIRECTIONAL);
+ 
+ 	ipu_mmu_unmap(mmu->dmap->mmu_info, iova->pfn_lo << PAGE_SHIFT,
+@@ -340,11 +300,7 @@ static void ipu_dma_unmap_sg(struct device *dev,
+ 
+ static int ipu_dma_map_sg(struct device *dev, struct scatterlist *sglist,
+ 			  int nents, enum dma_data_direction dir,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			  struct dma_attrs *attrs
+-#else
+ 			  unsigned long attrs
+-#endif
+ 			)
+ {
+ 	struct device *aiommu = to_ipu_bus_device(dev)->iommu;
+@@ -389,11 +345,7 @@ static int ipu_dma_map_sg(struct device *dev, struct scatterlist *sglist,
+ 		iova_addr += PAGE_ALIGN(sg->length) >> PAGE_SHIFT;
+ 	}
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	if (!dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
+-#else
+ 	if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
+-#endif
+ 		ipu_dma_sync_sg_for_cpu(dev, sglist, nents, DMA_BIDIRECTIONAL);
+ 
+ 	mmu->tlb_invalidate(mmu);
+@@ -411,11 +363,7 @@ static int ipu_dma_map_sg(struct device *dev, struct scatterlist *sglist,
+  */
+ static int ipu_dma_get_sgtable(struct device *dev, struct sg_table *sgt,
+ 			       void *cpu_addr, dma_addr_t handle, size_t size,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       struct dma_attrs *attrs
+-#else
+ 			       unsigned long attrs
+-#endif
+ 				)
+ {
+ 	struct vm_struct *area = find_vm_area(cpu_addr);
+diff --git a/drivers/media/pci/intel/ipu-fw-com.c b/drivers/media/pci/intel/ipu-fw-com.c
+index 4ddf1116a7563..a4f5a9daf30ee 100644
+--- a/drivers/media/pci/intel/ipu-fw-com.c
++++ b/drivers/media/pci/intel/ipu-fw-com.c
+@@ -245,12 +245,8 @@ void *ipu_fw_com_prepare(struct ipu_fw_com_cfg *cfg,
+ 
+ 	ctx->dma_buffer = dma_alloc_attrs(&ctx->adev->dev, sizeall,
+ 					  &ctx->dma_addr, GFP_KERNEL,
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+ 					  attrs);
+ 	ctx->attrs = attrs;
+-#else
+-					  NULL);
+-#endif
+ 	if (!ctx->dma_buffer) {
+ 		dev_err(&ctx->adev->dev, "failed to allocate dma memory\n");
+ 		return NULL;
+@@ -367,11 +363,7 @@ int ipu_fw_com_release(struct ipu_fw_com_context *ctx, unsigned int force)
+ 
+ 	dma_free_attrs(&ctx->adev->dev, ctx->dma_size,
+ 		       ctx->dma_buffer, ctx->dma_addr,
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+ 		       ctx->attrs);
+-#else
+-		       NULL);
+-#endif
+ 	kfree(ctx);
+ 	return 0;
+ }
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c b/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
+index 336ed0c78fcda..7fd69ec4084d6 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
+@@ -151,13 +151,7 @@ static struct media_entity_operations csi2_be_soc_entity_ops = {
+ };
+ 
+ static void csi2_be_soc_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				 struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-				 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		 struct v4l2_subdev_state *cfg,
+-#endif
+ 				 struct v4l2_subdev_format *fmt)
+ {
+ 	struct v4l2_mbus_framefmt *ffmt =
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2-be.c b/drivers/media/pci/intel/ipu-isys-csi2-be.c
+index 019de72a43907..3f1edc34b6d51 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2-be.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2-be.c
+@@ -150,15 +150,9 @@ static struct media_entity_operations csi2_be_entity_ops = {
+ 	.link_validate = v4l2_subdev_link_validate,
+ };
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-static void csi2_be_set_ffmt(struct v4l2_subdev *sd,
+-			     struct v4l2_subdev_fh *cfg,
+-			     struct v4l2_subdev_format *fmt)
+-#else
+ static void csi2_be_set_ffmt(struct v4l2_subdev *sd,
+ 			     struct v4l2_subdev_state *state,
+ 			     struct v4l2_subdev_format *fmt)
+-#endif
+ {
+ 	struct ipu_isys_csi2 *csi2 = to_ipu_isys_csi2(sd);
+ 	struct v4l2_mbus_framefmt *ffmt =
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2.c b/drivers/media/pci/intel/ipu-isys-csi2.c
+index 009ac9dced4c4..dd84d58ee7536 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2.c
+@@ -592,16 +592,10 @@ static const struct ipu_isys_pixelformat *
+ csi2_try_fmt(struct ipu_isys_video *av,
+ 	     struct v4l2_pix_format_mplane *mpix)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct v4l2_subdev *sd =
+-	    media_entity_to_v4l2_subdev(av->vdev.entity.links[0].source->
+-					entity);
+-#else
+ 	struct media_link *link = list_first_entry(&av->vdev.entity.links,
+ 						   struct media_link, list);
+ 	struct v4l2_subdev *sd =
+ 	    media_entity_to_v4l2_subdev(link->source->entity);
+-#endif
+ 	struct ipu_isys_csi2 *csi2;
+ 
+ 	if (!sd)
+diff --git a/drivers/media/pci/intel/ipu-isys-queue.c b/drivers/media/pci/intel/ipu-isys-queue.c
+index 45d67e9a83c6e..aec89420cf362 100644
+--- a/drivers/media/pci/intel/ipu-isys-queue.c
++++ b/drivers/media/pci/intel/ipu-isys-queue.c
+@@ -22,58 +22,28 @@ module_param(wall_clock_ts_on, bool, 0660);
+ MODULE_PARM_DESC(wall_clock_ts_on, "Timestamp based on REALTIME clock");
+ 
+ static int queue_setup(struct vb2_queue *q,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-		       const struct v4l2_format *__fmt,
+-#endif
+ 		       unsigned int *num_buffers, unsigned int *num_planes,
+ 		       unsigned int sizes[],
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-		       void *alloc_ctxs[]
+-#else
+ 		       struct device *alloc_devs[]
+-#endif
+ 			)
+ {
+ 	struct ipu_isys_queue *aq = vb2_queue_to_ipu_isys_queue(q);
+ 	struct ipu_isys_video *av = ipu_isys_queue_to_video(aq);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	const struct v4l2_format *fmt = __fmt;
+-	const struct ipu_isys_pixelformat *pfmt;
+-	struct v4l2_pix_format_mplane mpix;
+-#else
+ 	bool use_fmt = false;
+-#endif
+ 	unsigned int i;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	if (fmt)
+-		mpix = fmt->fmt.pix_mp;
+-	else
+-		mpix = av->mpix;
+-
+-	pfmt = av->try_fmt_vid_mplane(av, &mpix);
+-
+-	*num_planes = mpix.num_planes;
+-#else
+ 	/* num_planes == 0: we're being called through VIDIOC_REQBUFS */
+ 	if (!*num_planes) {
+ 		use_fmt = true;
+ 		*num_planes = av->mpix.num_planes;
+ 	}
+-#endif
+ 
+ 	for (i = 0; i < *num_planes; i++) {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		sizes[i] = mpix.plane_fmt[i].sizeimage;
+-#else
+ 		if (use_fmt)
+ 			sizes[i] = av->mpix.plane_fmt[i].sizeimage;
+-#endif
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-		alloc_ctxs[i] = aq->ctx;
+-#else
++
+ 		alloc_devs[i] = aq->dev;
+-#endif
++
+ 		dev_dbg(&av->isys->adev->dev,
+ 			"%s: queue setup: plane %d size %u\n",
+ 			av->vdev.name, i, sizes[i]);
+@@ -129,11 +99,7 @@ int ipu_isys_buf_prepare(struct vb2_buffer *vb)
+ 
+ 	vb2_set_plane_payload(vb, 0, av->mpix.plane_fmt[0].bytesperline *
+ 			      av->mpix.height);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	vb->v4l2_planes[0].data_offset = av->line_header_length / BITS_PER_BYTE;
+-#else
+ 	vb->planes[0].data_offset = av->line_header_length / BITS_PER_BYTE;
+-#endif
+ 
+ 	return 0;
+ }
+@@ -343,11 +309,7 @@ static void flush_firmware_streamon_fail(struct ipu_isys_pipeline *ip)
+ 				dev_dbg(&av->isys->adev->dev,
+ 					"%s: queue buffer %u back to incoming\n",
+ 					av->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-					vb->v4l2_buf.index);
+-#else
+ 					vb->index);
+-#endif
+ 				/* Queue already streaming, return to driver. */
+ 				list_add(&ib->head, &aq->incoming);
+ 				continue;
+@@ -356,11 +318,7 @@ static void flush_firmware_streamon_fail(struct ipu_isys_pipeline *ip)
+ 			dev_dbg(&av->isys->adev->dev,
+ 				"%s: return %u back to videobuf2\n",
+ 				av->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-				vb->v4l2_buf.index);
+-#else
+ 				vb->index);
+-#endif
+ 			vb2_buffer_done(ipu_isys_buffer_to_vb2_buffer(ib),
+ 					VB2_BUF_STATE_QUEUED);
+ 		}
+@@ -405,11 +363,7 @@ static int buffer_list_get(struct ipu_isys_pipeline *ip,
+ 
+ 		dev_dbg(&ip->isys->adev->dev, "buffer: %s: buffer %u\n",
+ 			ipu_isys_queue_to_video(aq)->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-			ipu_isys_buffer_to_vb2_buffer(ib)->v4l2_buf.index
+-#else
+ 			ipu_isys_buffer_to_vb2_buffer(ib)->index
+-#endif
+ 		    );
+ 		list_del(&ib->head);
+ 		list_add(&ib->head, &bl->head);
+@@ -465,11 +419,7 @@ void ipu_isys_buffer_list_to_ipu_fw_isys_frame_buff_set_pin(
+ 	set->output_pins[aq->fw_output].addr =
+ 	    vb2_dma_contig_plane_dma_addr(vb, 0);
+ 	set->output_pins[aq->fw_output].out_buf_id =
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	    vb->v4l2_buf.index + 1;
+-#else
+ 	    vb->index + 1;
+-#endif
+ }
+ 
+ /*
+@@ -708,11 +658,7 @@ static void __buf_queue(struct vb2_buffer *vb, bool force)
+ 
+ 	dev_dbg(&av->isys->adev->dev, "buffer: %s: buf_queue %u\n",
+ 		av->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		vb->v4l2_buf.index
+-#else
+ 		vb->index
+-#endif
+ 	    );
+ 
+ 	for (i = 0; i < vb->num_planes; i++)
+@@ -886,11 +832,7 @@ static void return_buffers(struct ipu_isys_queue *aq,
+ 			"%s: stop_streaming incoming %u\n",
+ 			ipu_isys_queue_to_video(vb2_queue_to_ipu_isys_queue
+ 						(vb->vb2_queue))->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-			vb->v4l2_buf.index);
+-#else
+ 			vb->index);
+-#endif
+ 
+ 		spin_lock_irqsave(&aq->lock, flags);
+ 	}
+@@ -915,11 +857,7 @@ static void return_buffers(struct ipu_isys_queue *aq,
+ 		dev_warn(&av->isys->adev->dev, "%s: cleaning active queue %u\n",
+ 			 ipu_isys_queue_to_video(vb2_queue_to_ipu_isys_queue
+ 						 (vb->vb2_queue))->vdev.name,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-			 vb->v4l2_buf.index);
+-#else
+ 			 vb->index);
+-#endif
+ 
+ 		spin_lock_irqsave(&aq->lock, flags);
+ 		reset_needed = 1;
+@@ -1102,12 +1040,7 @@ ipu_isys_buf_calc_sequence_time(struct ipu_isys_buffer *ib,
+ 				struct ipu_fw_isys_resp_info_abi *info)
+ {
+ 	struct vb2_buffer *vb = ipu_isys_buffer_to_vb2_buffer(ib);
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+ 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+-#endif
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct timespec ts_now;
+-#endif
+ 	struct ipu_isys_queue *aq = vb2_queue_to_ipu_isys_queue(vb->vb2_queue);
+ 	struct ipu_isys_video *av = ipu_isys_queue_to_video(aq);
+ 	struct ipu_isys_pipeline *ip =
+@@ -1126,29 +1059,11 @@ ipu_isys_buf_calc_sequence_time(struct ipu_isys_buffer *ib,
+ 		    / ip->nr_queues;
+ 	}
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	vb->v4l2_buf.sequence = sequence;
+-	ts_now = ns_to_timespec(ns);
+-	vb->v4l2_buf.timestamp.tv_sec = ts_now.tv_sec;
+-	vb->v4l2_buf.timestamp.tv_usec = ts_now.tv_nsec / NSEC_PER_USEC;
+-
+-	dev_dbg(&av->isys->adev->dev, "buffer: %s: buffer done %u\n",
+-		av->vdev.name, vb->v4l2_buf.index);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	vbuf->sequence = sequence;
+-	ts_now = ns_to_timespec(ns);
+-	vbuf->timestamp.tv_sec = ts_now.tv_sec;
+-	vbuf->timestamp.tv_usec = ts_now.tv_nsec / NSEC_PER_USEC;
+-
+-	dev_dbg(&av->isys->adev->dev, "%s: buffer done %u\n", av->vdev.name,
+-		vb->index);
+-#else
+ 	vbuf->vb2_buf.timestamp = ns;
+ 	vbuf->sequence = sequence;
+ 
+ 	dev_dbg(&av->isys->adev->dev, "buffer: %s: buffer done, CPU-timestamp:%lld, sequence:%d, vc:%d, index:%d, vbuf timestamp:%lld, endl\n",
+ 		av->vdev.name, ktime_get_ns(), sequence, ip->vc, vb->index, vbuf->vb2_buf.timestamp);
+-#endif
+ }
+ 
+ void ipu_isys_queue_buf_done(struct ipu_isys_buffer *ib)
+@@ -1177,11 +1092,7 @@ void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
+ 	struct vb2_buffer *vb;
+ 	unsigned long flags;
+ 	bool first = true;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	struct v4l2_buffer *buf;
+-#else
+ 	struct vb2_v4l2_buffer *buf;
+-#endif
+ 
+ 	dev_dbg(&isys->adev->dev, "buffer: %s: received buffer %8.8x\n",
+ 		ipu_isys_queue_to_video(aq)->vdev.name, info->pin.addr);
+@@ -1218,11 +1129,8 @@ void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
+ 		}
+ 		dev_dbg(&isys->adev->dev, "buffer: found buffer %pad\n", &addr);
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		buf = &vb->v4l2_buf;
+-#else
+ 		buf = to_vb2_v4l2_buffer(vb);
+-#endif
++
+ 		buf->field = V4L2_FIELD_NONE;
+ 
+ 		/*
+@@ -1392,9 +1300,6 @@ void ipu_isys_req_queue(struct media_request *req)
+ 
+ 		dev_dbg(&isys->adev->dev, "%s: device %s, id %u\n", __func__,
+ 			av->vdev.name, vb->
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-			v4l2_buf.
+-#endif
+ 			index);
+ 		if (!pipe) {
+ 			if (!av->vdev.entity.pipe) {
+@@ -1502,16 +1407,9 @@ int ipu_isys_queue_init(struct ipu_isys_queue *aq)
+ 	if (rval)
+ 		return rval;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	aq->ctx = vb2_dma_contig_init_ctx(&isys->adev->dev);
+-	if (IS_ERR(aq->ctx)) {
+-		vb2_queue_release(&aq->vbq);
+-		return PTR_ERR(aq->ctx);
+-	}
+-#else
+ 	aq->dev = &isys->adev->dev;
+ 	aq->vbq.dev = &isys->adev->dev;
+-#endif
++
+ 	spin_lock_init(&aq->lock);
+ 	INIT_LIST_HEAD(&aq->active);
+ 	INIT_LIST_HEAD(&aq->incoming);
+@@ -1521,12 +1419,5 @@ int ipu_isys_queue_init(struct ipu_isys_queue *aq)
+ 
+ void ipu_isys_queue_cleanup(struct ipu_isys_queue *aq)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	if (IS_ERR_OR_NULL(aq->ctx))
+-		return;
+-
+-	vb2_dma_contig_cleanup_ctx(aq->ctx);
+-	aq->ctx = NULL;
+-#endif
+ 	vb2_queue_release(&aq->vbq);
+ }
+diff --git a/drivers/media/pci/intel/ipu-isys-queue.h b/drivers/media/pci/intel/ipu-isys-queue.h
+index 3c0586954277c..5dabf759d2965 100644
+--- a/drivers/media/pci/intel/ipu-isys-queue.h
++++ b/drivers/media/pci/intel/ipu-isys-queue.h
+@@ -7,11 +7,7 @@
+ #include <linux/list.h>
+ #include <linux/spinlock.h>
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-#include <media/videobuf2-core.h>
+-#else
+ #include <media/videobuf2-v4l2.h>
+-#endif
+ 
+ #include "ipu-isys-media.h"
+ 
+@@ -28,11 +24,7 @@ enum ipu_isys_buffer_type {
+ struct ipu_isys_queue {
+ 	struct list_head node;	/* struct ipu_isys_pipeline.queues */
+ 	struct vb2_queue vbq;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct vb2_alloc_ctx *ctx;
+-#else
+ 	struct device *dev;
+-#endif
+ 	/*
+ 	 * @lock: serialise access to queued and pre_streamon_queued
+ 	 */
+@@ -60,11 +52,7 @@ struct ipu_isys_buffer {
+ };
+ 
+ struct ipu_isys_video_buffer {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	struct vb2_buffer vb;
+-#else
+ 	struct vb2_v4l2_buffer vb_v4l2;
+-#endif
+ 	struct ipu_isys_buffer ib;
+ };
+ 
+@@ -92,20 +80,12 @@ struct ipu_isys_buffer_list {
+ #define ipu_isys_to_isys_video_buffer(__ib) \
+ 	container_of(__ib, struct ipu_isys_video_buffer, ib)
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-#define vb2_buffer_to_ipu_isys_video_buffer(__vb) \
+-	container_of(__vb, struct ipu_isys_video_buffer, vb)
+-
+-#define ipu_isys_buffer_to_vb2_buffer(__ib) \
+-	(&ipu_isys_to_isys_video_buffer(__ib)->vb)
+-#else
+ #define vb2_buffer_to_ipu_isys_video_buffer(__vb) \
+ 	container_of(to_vb2_v4l2_buffer(__vb), \
+ 	struct ipu_isys_video_buffer, vb_v4l2)
+ 
+ #define ipu_isys_buffer_to_vb2_buffer(__ib) \
+ 	(&ipu_isys_to_isys_video_buffer(__ib)->vb_v4l2.vb2_buf)
+-#endif
+ 
+ #define vb2_buffer_to_ipu_isys_buffer(__vb) \
+ 	(&vb2_buffer_to_ipu_isys_video_buffer(__vb)->ib)
+diff --git a/drivers/media/pci/intel/ipu-isys-subdev.c b/drivers/media/pci/intel/ipu-isys-subdev.c
+index cad8623dec10c..724cde38decf1 100644
+--- a/drivers/media/pci/intel/ipu-isys-subdev.c
++++ b/drivers/media/pci/intel/ipu-isys-subdev.c
+@@ -148,13 +148,7 @@ u32 ipu_isys_subdev_code_to_uncompressed(u32 sink_code)
+ }
+ 
+ struct v4l2_mbus_framefmt *__ipu_isys_get_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-					       struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-					       struct v4l2_subdev_pad_config *cfg,
+-#else
+ 			   struct v4l2_subdev_state *cfg,
+-#endif
+ 					       unsigned int pad,
+ 					       unsigned int stream,
+ 					       unsigned int which)
+@@ -165,20 +159,12 @@ struct v4l2_mbus_framefmt *__ipu_isys_get_ffmt(struct v4l2_subdev *sd,
+ 		return &asd->ffmt[pad][stream];
+ 	else
+ 		return v4l2_subdev_get_try_format(
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+ 							 sd,
+-#endif
+ 							 cfg, pad);
+ }
+ 
+ struct v4l2_rect *__ipu_isys_get_selection(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-					   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-					   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		       struct v4l2_subdev_state *cfg,
+-#endif
+ 					   unsigned int target,
+ 					   unsigned int pad, unsigned int which)
+ {
+@@ -195,15 +181,11 @@ struct v4l2_rect *__ipu_isys_get_selection(struct v4l2_subdev *sd,
+ 		switch (target) {
+ 		case V4L2_SEL_TGT_CROP:
+ 			return v4l2_subdev_get_try_crop(
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+ 							       sd,
+-#endif
+ 							       cfg, pad);
+ 		case V4L2_SEL_TGT_COMPOSE:
+ 			return v4l2_subdev_get_try_compose(
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+ 								  sd,
+-#endif
+ 								  cfg, pad);
+ 		}
+ 	}
+@@ -227,13 +209,7 @@ static int target_valid(struct v4l2_subdev *sd, unsigned int target,
+ }
+ 
+ int ipu_isys_subdev_fmt_propagate(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-				   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		    struct v4l2_subdev_state *cfg,
+-#endif
+ 				   struct v4l2_mbus_framefmt *ffmt,
+ 				   struct v4l2_rect *r,
+ 				   enum isys_subdev_prop_tgt tgt,
+@@ -400,13 +376,7 @@ int ipu_isys_subdev_fmt_propagate(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_set_ffmt_default(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				      struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-					  struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		      struct v4l2_subdev_state *cfg,
+-#endif
+ 				      struct v4l2_subdev_format *fmt)
+ {
+ 	struct v4l2_mbus_framefmt *ffmt =
+@@ -436,13 +406,7 @@ int ipu_isys_subdev_set_ffmt_default(struct v4l2_subdev *sd,
+ }
+ 
+ int __ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			       struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-				   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		   struct v4l2_subdev_state *cfg,
+-#endif
+ 			       struct v4l2_subdev_format *fmt)
+ {
+ 	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+@@ -476,13 +440,7 @@ int __ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			     struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			     struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		 struct v4l2_subdev_state *cfg,
+-#endif
+ 			     struct v4l2_subdev_format *fmt)
+ {
+ 	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+@@ -499,13 +457,7 @@ int ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_get_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			     struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			     struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		 struct v4l2_subdev_state *cfg,
+-#endif
+ 			     struct v4l2_subdev_format *fmt)
+ {
+ 	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+@@ -549,11 +501,7 @@ int ipu_isys_subdev_set_routing(struct v4l2_subdev *sd,
+ 	int i, j, ret = 0;
+ 
+ 	WARN_ON(!mutex_is_locked(&sd->entity.
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-				 parent
+-#else
+ 				 graph_obj.mdev
+-#endif
+ 				 ->graph_mutex));
+ 
+ 	for (i = 0; i < min(route->num_routes, asd->nstreams); ++i) {
+@@ -658,13 +606,7 @@ int ipu_isys_subdev_get_routing(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_set_sel(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			    struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			    struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		struct v4l2_subdev_state *cfg,
+-#endif
+ 			    struct v4l2_subdev_selection *sel)
+ {
+ 	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+@@ -719,13 +661,7 @@ int ipu_isys_subdev_set_sel(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_get_sel(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			    struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			    struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		struct v4l2_subdev_state *cfg,
+-#endif
+ 			    struct v4l2_subdev_selection *sel)
+ {
+ 	if (!target_valid(sd, sel->target, sel->pad))
+@@ -738,13 +674,7 @@ int ipu_isys_subdev_get_sel(struct v4l2_subdev *sd,
+ }
+ 
+ int ipu_isys_subdev_enum_mbus_code(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		   struct v4l2_subdev_state *cfg,
+-#endif
+ 				   struct v4l2_subdev_mbus_code_enum *code)
+ {
+ 	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+@@ -890,33 +820,15 @@ int ipu_isys_subdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+ 	for (i = 0; i < asd->sd.entity.num_pads; i++) {
+ 		struct v4l2_mbus_framefmt *try_fmt =
+ 			v4l2_subdev_get_try_format(
+-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
+ 			sd, fh->state,
+-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+-			sd, fh->pad,
+-#else
+-			fh,
+-#endif
+ 			i);
+ 		struct v4l2_rect *try_crop =
+ 			v4l2_subdev_get_try_crop(
+-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
+ 			sd, fh->state,
+-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+-			sd, fh->pad,
+-#else
+-			fh,
+-#endif
+ 			i);
+ 		struct v4l2_rect *try_compose =
+ 			v4l2_subdev_get_try_compose(
+-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
+ 			sd, fh->state,
+-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+-			sd, fh->pad,
+-#else
+-			fh,
+-#endif
+ 			i);
+ 
+ 		*try_fmt = asd->ffmt[i][0];
+diff --git a/drivers/media/pci/intel/ipu-isys-subdev.h b/drivers/media/pci/intel/ipu-isys-subdev.h
+index 51c05504708bd..a1274bd133482 100644
+--- a/drivers/media/pci/intel/ipu-isys-subdev.h
++++ b/drivers/media/pci/intel/ipu-isys-subdev.h
+@@ -86,13 +86,7 @@ struct ipu_isys_subdev {
+ 	struct v4l2_ctrl_handler ctrl_handler;
+ 	void (*ctrl_init)(struct v4l2_subdev *sd);
+ 	void (*set_ffmt)(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			  struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			  struct v4l2_subdev_pad_config *cfg,
+-#else
+ 	      struct v4l2_subdev_state *cfg,
+-#endif
+ 			  struct v4l2_subdev_format *fmt);
+ 	struct {
+ 		bool crop;
+@@ -107,13 +101,7 @@ struct ipu_isys_subdev {
+ 	container_of(__sd, struct ipu_isys_subdev, sd)
+ 
+ struct v4l2_mbus_framefmt *__ipu_isys_get_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-					       struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-				   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 			   struct v4l2_subdev_state *cfg,
+-#endif
+ 					       unsigned int pad,
+ 					       unsigned int stream,
+ 					       unsigned int which);
+@@ -125,64 +113,28 @@ u32 ipu_isys_subdev_code_to_uncompressed(u32 sink_code);
+ enum ipu_isys_subdev_pixelorder ipu_isys_subdev_get_pixelorder(u32 code);
+ 
+ int ipu_isys_subdev_fmt_propagate(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		   struct v4l2_subdev_state *cfg,
+-#endif
+ 				   struct v4l2_mbus_framefmt *ffmt,
+ 				   struct v4l2_rect *r,
+ 				   enum isys_subdev_prop_tgt tgt,
+ 				   unsigned int pad, unsigned int which);
+ 
+ int ipu_isys_subdev_set_ffmt_default(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				      struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		      struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		      struct v4l2_subdev_state *cfg,
+-#endif
+ 				      struct v4l2_subdev_format *fmt);
+ int __ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			       struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		   struct v4l2_subdev_state *cfg,
+-#endif
+ 			       struct v4l2_subdev_format *fmt);
+ struct v4l2_rect *__ipu_isys_get_selection(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-					   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		       struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		       struct v4l2_subdev_state *cfg,
+-#endif
+ 					   unsigned int target,
+ 					   unsigned int pad,
+ 					   unsigned int which);
+ int ipu_isys_subdev_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			     struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		 struct v4l2_subdev_state *cfg,
+-#endif
+ 			     struct v4l2_subdev_format *fmt);
+ int ipu_isys_subdev_get_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			     struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		 struct v4l2_subdev_state *cfg,
+-#endif
+ 			     struct v4l2_subdev_format *fmt);
+ int ipu_isys_subdev_get_sel(struct v4l2_subdev *sd,
+ 			    struct v4l2_subdev_state *cfg,
+@@ -191,13 +143,7 @@ int ipu_isys_subdev_set_sel(struct v4l2_subdev *sd,
+ 			    struct v4l2_subdev_state *cfg,
+ 			    struct v4l2_subdev_selection *sel);
+ int ipu_isys_subdev_enum_mbus_code(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				   struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-		   struct v4l2_subdev_pad_config *cfg,
+-#else
+ 		   struct v4l2_subdev_state *cfg,
+-#endif
+ 				   struct v4l2_subdev_mbus_code_enum
+ 				   *code);
+ int ipu_isys_subdev_link_validate(struct v4l2_subdev *sd,
+diff --git a/drivers/media/pci/intel/ipu-isys-tpg.c b/drivers/media/pci/intel/ipu-isys-tpg.c
+index 8928cbaf2091f..ac38203d8dcd8 100644
+--- a/drivers/media/pci/intel/ipu-isys-tpg.c
++++ b/drivers/media/pci/intel/ipu-isys-tpg.c
+@@ -164,13 +164,7 @@ static void ipu_isys_tpg_init_controls(struct v4l2_subdev *sd)
+ }
+ 
+ static void tpg_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			 struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 	     struct v4l2_subdev_state *cfg,
+-#endif
+ 			 struct v4l2_subdev_format *fmt)
+ {
+ 	fmt->format.field = V4L2_FIELD_NONE;
+@@ -179,13 +173,7 @@ static void tpg_set_ffmt(struct v4l2_subdev *sd,
+ }
+ 
+ static int ipu_isys_tpg_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-				 struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 	     struct v4l2_subdev_state *cfg,
+-#endif
+ 				 struct v4l2_subdev_format *fmt)
+ {
+ 	struct ipu_isys_tpg *tpg = to_ipu_isys_tpg(sd);
+@@ -210,16 +198,10 @@ static const struct ipu_isys_pixelformat *ipu_isys_tpg_try_fmt(
+ 					struct ipu_isys_video *av,
+ 					struct v4l2_pix_format_mplane *mpix)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct media_entity entity = av->vdev.entity;
+-	struct v4l2_subdev *sd =
+-		media_entity_to_v4l2_subdev(entity.links[0].source->entity);
+-#else
+ 	struct media_link *link = list_first_entry(&av->vdev.entity.links,
+ 						   struct media_link, list);
+ 	struct v4l2_subdev *sd =
+ 		media_entity_to_v4l2_subdev(link->source->entity);
+-#endif
+ 	struct ipu_isys_tpg *tpg;
+ 
+ 	if (!sd)
+@@ -304,11 +286,7 @@ int ipu_isys_tpg_init(struct ipu_isys_tpg *tpg,
+ 	if (rval)
+ 		return rval;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	tpg->asd.sd.entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
+-#else
+ 	tpg->asd.sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
+-#endif
+ 	tpg->asd.pad[TPG_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
+ 
+ 	tpg->asd.source = IPU_FW_ISYS_STREAM_SRC_MIPIGEN_PORT0 + index;
+diff --git a/drivers/media/pci/intel/ipu-isys-video.c b/drivers/media/pci/intel/ipu-isys-video.c
+index 9bb388c2cd0a3..e57b691b4472c 100644
+--- a/drivers/media/pci/intel/ipu-isys-video.c
++++ b/drivers/media/pci/intel/ipu-isys-video.c
+@@ -10,18 +10,12 @@
+ #include <linux/version.h>
+ #include <linux/compat.h>
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+-#include <linux/sched.h>
+-#else
+ #include <uapi/linux/sched/types.h>
+-#endif
+ 
+ #include <media/media-entity.h>
+ #include <media/v4l2-device.h>
+ #include <media/v4l2-ioctl.h>
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+ #include <media/v4l2-mc.h>
+-#endif
+ 
+ #include "ipu.h"
+ #include "ipu-bus.h"
+@@ -194,13 +188,7 @@ static int video_open(struct file *file)
+ 	if (rval)
+ 		goto out_power_down;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-	rval = ipu_pipeline_pm_use(&av->vdev.entity, 1);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+-	rval = v4l2_pipeline_pm_use(&av->vdev.entity, 1);
+-#else
+     rval = v4l2_pipeline_pm_get(&av->vdev.entity);
+-#endif
+ 	if (rval)
+ 		goto out_v4l2_fh_release;
+ 
+@@ -245,13 +233,7 @@ static int video_open(struct file *file)
+ out_lib_init:
+ 	isys->video_opened--;
+ 	mutex_unlock(&isys->mutex);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-	ipu_pipeline_pm_use(&av->vdev.entity, 0);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+-	v4l2_pipeline_pm_use(&av->vdev.entity, 0);
+-#else
+     v4l2_pipeline_pm_put(&av->vdev.entity);
+-#endif
+ 
+ out_v4l2_fh_release:
+ 	v4l2_fh_release(file);
+@@ -280,13 +262,7 @@ static int video_release(struct file *file)
+ 
+ 	mutex_unlock(&av->isys->mutex);
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-	ipu_pipeline_pm_use(&av->vdev.entity, 0);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+-	v4l2_pipeline_pm_use(&av->vdev.entity, 0);
+-#else
+     v4l2_pipeline_pm_put(&av->vdev.entity);
+-#endif
+ 
+ 	if (av->isys->reset_needed)
+ 		pm_runtime_put_sync(&av->isys->adev->dev);
+@@ -296,7 +272,6 @@ static int video_release(struct file *file)
+ 	return ret;
+ }
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+ static struct media_pad *other_pad(struct media_pad *pad)
+ {
+ 	struct media_link *link;
+@@ -312,19 +287,12 @@ static struct media_pad *other_pad(struct media_pad *pad)
+ 	WARN_ON(1);
+ 	return NULL;
+ }
+-#endif
+ 
+ const struct ipu_isys_pixelformat *ipu_isys_get_pixelformat(
+ 					struct ipu_isys_video *av,
+ 					u32 pixelformat)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct media_pad *pad =
+-	    av->vdev.entity.pads[0].flags & MEDIA_PAD_FL_SOURCE ?
+-	    av->vdev.entity.links[0].sink : av->vdev.entity.links[0].source;
+-#else
+ 	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
+-#endif
+ 	struct v4l2_subdev *sd;
+ 	const u32 *supported_codes;
+ 	const struct ipu_isys_pixelformat *pfmt;
+@@ -397,13 +365,7 @@ int ipu_isys_vidioc_enum_fmt(struct file *file, void *fh,
+ 			     struct v4l2_fmtdesc *f)
+ {
+ 	struct ipu_isys_video *av = video_drvdata(file);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct media_pad *pad =
+-	    av->vdev.entity.pads[0].flags & MEDIA_PAD_FL_SOURCE ?
+-	    av->vdev.entity.links[0].sink : av->vdev.entity.links[0].source;
+-#else
+ 	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
+-#endif
+ 	struct v4l2_subdev *sd;
+ 	const u32 *supported_codes;
+ 	const struct ipu_isys_pixelformat *pfmt;
+@@ -833,19 +795,9 @@ static int get_external_facing_format(struct ipu_isys_pipeline *ip,
+ static void short_packet_queue_destroy(struct ipu_isys_pipeline *ip)
+ {
+ 	struct ipu_isys_video *av = container_of(ip, struct ipu_isys_video, ip);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ 	unsigned int i;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	init_dma_attrs(&attrs);
+-	dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+-	attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+ 	if (!ip->short_packet_bufs)
+ 		return;
+ 	for (i = 0; i < IPU_ISYS_SHORT_PACKET_BUFFER_NUM; i++) {
+@@ -854,11 +806,7 @@ static void short_packet_queue_destroy(struct ipu_isys_pipeline *ip)
+ 				       ip->short_packet_buffer_size,
+ 				       ip->short_packet_bufs[i].buffer,
+ 				       ip->short_packet_bufs[i].dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-				       &attrs
+-#else
+ 				       attrs
+-#endif
+ 			    );
+ 	}
+ 	kfree(ip->short_packet_bufs);
+@@ -869,11 +817,7 @@ static int short_packet_queue_setup(struct ipu_isys_pipeline *ip)
+ {
+ 	struct ipu_isys_video *av = container_of(ip, struct ipu_isys_video, ip);
+ 	struct v4l2_subdev_format source_fmt = { 0 };
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ 	unsigned int i;
+ 	int rval;
+ 	size_t buf_size;
+@@ -897,12 +841,6 @@ static int short_packet_queue_setup(struct ipu_isys_pipeline *ip)
+ 	/* Initialize short packet queue. */
+ 	INIT_LIST_HEAD(&ip->short_packet_incoming);
+ 	INIT_LIST_HEAD(&ip->short_packet_active);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	init_dma_attrs(&attrs);
+-	dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+-	attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+ 
+ 	ip->short_packet_bufs =
+ 	    kzalloc(sizeof(struct ipu_isys_private_buffer) *
+@@ -919,11 +857,7 @@ static int short_packet_queue_setup(struct ipu_isys_pipeline *ip)
+ 		buf->bytesused = buf_size;
+ 		buf->buffer = dma_alloc_attrs(&av->isys->adev->dev, buf_size,
+ 					      &buf->dma_addr, GFP_KERNEL,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-					      &attrs
+-#else
+ 					      attrs
+-#endif
+ 		    );
+ 		if (!buf->buffer) {
+ 			short_packet_queue_destroy(ip);
+@@ -1449,11 +1383,7 @@ int ipu_isys_video_prepare_streaming(struct ipu_isys_video *av,
+ 	struct ipu_isys *isys = av->isys;
+ 	struct device *dev = &isys->adev->dev;
+ 	struct ipu_isys_pipeline *ip;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+ 	struct media_graph graph;
+-#else
+-	struct media_entity_graph graph;
+-#endif
+ 	struct media_entity *entity;
+ 	struct media_device *mdev = &av->isys->media_dev;
+ 	int rval;
+@@ -1581,12 +1511,7 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
+ 				 struct ipu_isys_buffer_list *bl)
+ {
+ 	struct device *dev = &av->isys->adev->dev;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+-	struct media_device *mdev = av->vdev.entity.parent;
+-	struct media_entity_graph graph;
+-#else
+ 	struct media_device *mdev = av->vdev.entity.graph_obj.mdev;
+-#endif
+ 	struct media_entity_enum entities;
+ 
+ 	struct media_entity *entity, *entity2;
+diff --git a/drivers/media/pci/intel/ipu-isys-video.h b/drivers/media/pci/intel/ipu-isys-video.h
+index c1375f70a897e..8eb8f614a49f1 100644
+--- a/drivers/media/pci/intel/ipu-isys-video.h
++++ b/drivers/media/pci/intel/ipu-isys-video.h
+@@ -90,13 +90,7 @@ struct ipu_isys_pipeline {
+ 	unsigned int short_packet_trace_index;
+ 	unsigned int vc;
+ 	unsigned int stream_id;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+ 	struct media_graph graph;
+-#else
+-	struct media_entity_graph graph;
+-#endif
+-#endif
+ 	struct media_entity_enum entity_enum;
+ };
+ 
+diff --git a/drivers/media/pci/intel/ipu-isys.c b/drivers/media/pci/intel/ipu-isys.c
+index 8603cce0c3a4c..95344bb1ac877 100644
+--- a/drivers/media/pci/intel/ipu-isys.c
++++ b/drivers/media/pci/intel/ipu-isys.c
+@@ -14,9 +14,7 @@
+ #include <linux/version.h>
+ 
+ #include <media/ipu-isys.h>
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+ #include <media/v4l2-mc.h>
+-#endif
+ #include <media/v4l2-subdev.h>
+ 
+ #include "ipu.h"
+@@ -390,11 +388,7 @@ static int isys_register_subdevices(struct ipu_isys *isys)
+ }
+ 
+ static struct media_device_ops isys_mdev_ops = {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-	.link_notify = ipu_pipeline_link_notify,
+-#else
+ 	.link_notify = v4l2_pipeline_link_notify,
+-#endif
+ 	.req_alloc = ipu_isys_req_alloc,
+ 	.req_free = ipu_isys_req_free,
+ 	.req_queue = ipu_isys_req_queue,
+@@ -405,26 +399,15 @@ static int isys_register_devices(struct ipu_isys *isys)
+ 	int rval;
+ 
+ 	isys->media_dev.dev = &isys->adev->dev;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 12)
+ 	isys->media_dev.ops = &isys_mdev_ops;
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-	isys->media_dev.link_notify = ipu_pipeline_link_notify;
+-#else
+-	isys->media_dev.link_notify = v4l2_pipeline_link_notify;
+-#endif
+ 	strlcpy(isys->media_dev.model,
+ 		IPU_MEDIA_DEV_MODEL_NAME, sizeof(isys->media_dev.model));
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+-	isys->media_dev.driver_version = LINUX_VERSION_CODE;
+-#endif
+ 	snprintf(isys->media_dev.bus_info, sizeof(isys->media_dev.bus_info),
+ 		 "pci:%s", dev_name(isys->adev->dev.parent->parent));
+ 	strlcpy(isys->v4l2_dev.name, isys->media_dev.model,
+ 		sizeof(isys->v4l2_dev.name));
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+ 	media_device_init(&isys->media_dev);
+-#endif
+ 
+ 	rval = media_device_register(&isys->media_dev);
+ 	if (rval < 0) {
+@@ -460,9 +443,7 @@ static int isys_register_devices(struct ipu_isys *isys)
+ 
+ out_media_device_unregister:
+ 	media_device_unregister(&isys->media_dev);
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+ 	media_device_cleanup(&isys->media_dev);
+-#endif
+ 
+ 	return rval;
+ }
+@@ -472,9 +453,7 @@ static void isys_unregister_devices(struct ipu_isys *isys)
+ 	isys_unregister_subdevices(isys);
+ 	v4l2_device_unregister(&isys->v4l2_dev);
+ 	media_device_unregister(&isys->media_dev);
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+ 	media_device_cleanup(&isys->media_dev);
+-#endif
+ }
+ 
+ #ifdef CONFIG_PM
+@@ -580,22 +559,14 @@ static void isys_remove(struct ipu_bus_device *adev)
+ 	list_for_each_entry_safe(fwmsg, safe, &isys->framebuflist, head) {
+ 		dma_free_attrs(&adev->dev, sizeof(struct isys_fw_msgs),
+ 			       fwmsg, fwmsg->dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       NULL
+-#else
+ 			       0
+-#endif
+ 		    );
+ 	}
+ 
+ 	list_for_each_entry_safe(fwmsg, safe, &isys->framebuflist_fw, head) {
+ 		dma_free_attrs(&adev->dev, sizeof(struct isys_fw_msgs),
+ 			       fwmsg, fwmsg->dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       NULL
+-#else
+ 			       0
+-#endif
+ 		    );
+ 	}
+ 
+@@ -616,25 +587,10 @@ static void isys_remove(struct ipu_bus_device *adev)
+ 
+ 	if (isys->short_packet_source == IPU_ISYS_SHORT_PACKET_FROM_TUNIT) {
+ 		u32 trace_size = IPU_ISYS_SHORT_PACKET_TRACE_BUFFER_SIZE;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-		struct dma_attrs attrs;
+-
+-		init_dma_attrs(&attrs);
+-		dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-		dma_free_attrs(&adev->dev, trace_size,
+-			       isys->short_packet_trace_buffer,
+-			       isys->short_packet_trace_buffer_dma_addr,
+-			       &attrs);
+-#else
+ 		unsigned long attrs = 0;
+-
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+-		attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+ 		dma_free_attrs(&adev->dev, trace_size,
+ 			       isys->short_packet_trace_buffer,
+ 			       isys->short_packet_trace_buffer_dma_addr, attrs);
+-#endif
+ 	}
+ }
+ 
+@@ -696,11 +652,7 @@ static int alloc_fw_msg_buffers(struct ipu_isys *isys, int amount)
+ 		addr = dma_alloc_attrs(&isys->adev->dev,
+ 				       sizeof(struct isys_fw_msgs),
+ 				       &dma_addr, GFP_KERNEL,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-				       NULL
+-#else
+ 				       0
+-#endif
+ 		    );
+ 		if (!addr)
+ 			break;
+@@ -721,11 +673,7 @@ static int alloc_fw_msg_buffers(struct ipu_isys *isys, int amount)
+ 		dma_free_attrs(&isys->adev->dev,
+ 			       sizeof(struct isys_fw_msgs),
+ 			       addr, addr->dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       NULL
+-#else
+ 			       0
+-#endif
+ 		    );
+ 		spin_lock_irqsave(&isys->listlock, flags);
+ 	}
+@@ -798,11 +746,7 @@ static int isys_probe(struct ipu_bus_device *adev)
+ #if defined(CONFIG_VIDEO_INTEL_IPU4) || defined(CONFIG_VIDEO_INTEL_IPU4P)
+ 	const u32 trace_size = IPU_ISYS_SHORT_PACKET_TRACE_BUFFER_SIZE;
+ 	dma_addr_t *trace_dma_addr;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ #endif
+ 	const struct firmware *fw;
+ 	int rval = 0;
+@@ -824,20 +768,9 @@ static int isys_probe(struct ipu_bus_device *adev)
+ 	isys->short_packet_source = IPU_ISYS_SHORT_PACKET_FROM_TUNIT;
+ 	trace_dma_addr = &isys->short_packet_trace_buffer_dma_addr;
+ 	mutex_init(&isys->short_packet_tracing_mutex);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	init_dma_attrs(&attrs);
+-	dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-	isys->short_packet_trace_buffer =
+-	    dma_alloc_attrs(&adev->dev, trace_size, trace_dma_addr,
+-			    GFP_KERNEL, &attrs);
+-#else
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+-	attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+ 	isys->short_packet_trace_buffer =
+ 	    dma_alloc_attrs(&adev->dev, trace_size, trace_dma_addr,
+ 			    GFP_KERNEL, attrs);
+-#endif
+ 	if (!isys->short_packet_trace_buffer)
+ 		return -ENOMEM;
+ #else
+@@ -935,11 +868,7 @@ static int isys_probe(struct ipu_bus_device *adev)
+ 		dma_free_attrs(&adev->dev, trace_size,
+ 			       isys->short_packet_trace_buffer,
+ 			       isys->short_packet_trace_buffer_dma_addr,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       &attrs);
+-#else
+ 			       attrs);
+-#endif
+ #endif
+ 	}
+ 
+@@ -1107,11 +1036,7 @@ int isys_isr_one(struct ipu_bus_device *adev)
+ 				struct vb2_buffer *vb;
+ 
+ 				vb = ipu_isys_buffer_to_vb2_buffer(ib);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-				vb->v4l2_buf.field = pipe->cur_field;
+-#else
+ 				to_vb2_v4l2_buffer(vb)->field = pipe->cur_field;
+-#endif
+ 				list_del(&ib->head);
+ 
+ 				ipu_isys_queue_buf_done(ib);
+diff --git a/drivers/media/pci/intel/ipu-isys.h b/drivers/media/pci/intel/ipu-isys.h
+index 847961062c9fa..a16f9e1641617 100644
+--- a/drivers/media/pci/intel/ipu-isys.h
++++ b/drivers/media/pci/intel/ipu-isys.h
+@@ -161,9 +161,6 @@ struct isys_fw_msgs {
+ #define to_stream_cfg_msg_buf(a) (&(a)->fw_msg.stream)
+ #define to_dma_addr(a) ((a)->dma_addr)
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-int ipu_pipeline_pm_use(struct media_entity *entity, int use);
+-#endif
+ struct isys_fw_msgs *ipu_get_fw_msg_buf(struct ipu_isys_pipeline *ip);
+ void ipu_put_fw_mgs_buffer(struct ipu_isys *isys, u64 data);
+ void ipu_cleanup_fw_msg_bufs(struct ipu_isys *isys);
+diff --git a/drivers/media/pci/intel/ipu-psys.c b/drivers/media/pci/intel/ipu-psys.c
+index f9bcc388875d3..71d1adf447ecb 100644
+--- a/drivers/media/pci/intel/ipu-psys.c
++++ b/drivers/media/pci/intel/ipu-psys.c
+@@ -15,18 +15,10 @@
+ #include <linux/pm_runtime.h>
+ #include <linux/version.h>
+ #include <linux/poll.h>
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+-#include <linux/sched.h>
+-#else
+ #include <uapi/linux/sched/types.h>
+-#endif
+ #include <linux/uaccess.h>
+ #include <linux/vmalloc.h>
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-#include <linux/dma-attrs.h>
+-#else
+ #include <linux/dma-mapping.h>
+-#endif
+ 
+ #include <uapi/linux/ipu-psys.h>
+ 
+@@ -204,15 +196,8 @@ static int ipu_psys_get_userpages(struct ipu_dma_buf_attach *attach)
+ 		}
+ 	} else {
+ 		nr = get_user_pages(
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-				   current, current->mm,
+-#endif
+ 				   start & PAGE_MASK, npages,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+-				   1, 0,
+-#else
+ 				   FOLL_WRITE,
+-#endif
+ 				   pages, NULL);
+ 		if (nr < npages)
+ 			goto error_up_read;
+@@ -273,13 +258,8 @@ static void ipu_psys_put_userpages(struct ipu_dma_buf_attach *attach)
+ 	kfree(attach->sgt);
+ 	attach->sgt = NULL;
+ }
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+ static int ipu_dma_buf_attach(struct dma_buf *dbuf,
+ 			      struct dma_buf_attachment *attach)
+-#else
+-static int ipu_dma_buf_attach(struct dma_buf *dbuf, struct device *dev,
+-			      struct dma_buf_attachment *attach)
+-#endif
+ {
+ 	struct ipu_psys_kbuffer *kbuf = dbuf->priv;
+ 	struct ipu_dma_buf_attach *ipu_attach;
+@@ -288,9 +268,6 @@ static int ipu_dma_buf_attach(struct dma_buf *dbuf, struct device *dev,
+ 	if (!ipu_attach)
+ 		return -ENOMEM;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+-	ipu_attach->dev = dev;
+-#endif
+ 	ipu_attach->len = kbuf->len;
+ 	ipu_attach->userptr = kbuf->userptr;
+ 
+@@ -311,26 +288,16 @@ static struct sg_table *ipu_dma_buf_map(struct dma_buf_attachment *attach,
+ 					enum dma_data_direction dir)
+ {
+ 	struct ipu_dma_buf_attach *ipu_attach = attach->priv;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	DEFINE_DMA_ATTRS(attrs);
+-#else
+ 	unsigned long attrs;
+-#endif
+ 	int ret;
+ 
+ 	ret = ipu_psys_get_userpages(ipu_attach);
+ 	if (ret)
+ 		return NULL;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
+-	ret = dma_map_sg_attrs(attach->dev, ipu_attach->sgt->sgl,
+-			       ipu_attach->sgt->orig_nents, dir, &attrs);
+-#else
+ 	attrs = DMA_ATTR_SKIP_CPU_SYNC;
+ 	ret = dma_map_sg_attrs(attach->dev, ipu_attach->sgt->sgl,
+ 			       ipu_attach->sgt->orig_nents, dir, attrs);
+-#endif
+ 	if (ret < ipu_attach->sgt->orig_nents) {
+ 		ipu_psys_put_userpages(ipu_attach);
+ 		dev_dbg(attach->dev, "buf map failed\n");
+@@ -362,20 +329,6 @@ static int ipu_dma_buf_mmap(struct dma_buf *dbuf, struct vm_area_struct *vma)
+ 	return -ENOTTY;
+ }
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
+-static void *ipu_dma_buf_kmap(struct dma_buf *dbuf, unsigned long pgnum)
+-{
+-	return NULL;
+-}
+-#endif
+-
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+-static void *ipu_dma_buf_kmap_atomic(struct dma_buf *dbuf, unsigned long pgnum)
+-{
+-	return NULL;
+-}
+-#endif
+-
+ static void ipu_dma_buf_release(struct dma_buf *buf)
+ {
+ 	struct ipu_psys_kbuffer *kbuf = buf->priv;
+@@ -392,9 +345,6 @@ static void ipu_dma_buf_release(struct dma_buf *buf)
+ }
+ 
+ static int ipu_dma_buf_begin_cpu_access(struct dma_buf *dma_buf,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+-				 size_t start, size_t len,
+-#endif
+ 				 enum dma_data_direction dir)
+ {
+ 	return -ENOTTY;
+@@ -452,15 +402,6 @@ static struct dma_buf_ops ipu_dma_buf_ops = {
+ 	.unmap_dma_buf = ipu_dma_buf_unmap,
+ 	.release = ipu_dma_buf_release,
+ 	.begin_cpu_access = ipu_dma_buf_begin_cpu_access,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+-	.kmap = ipu_dma_buf_kmap,
+-	.kmap_atomic = ipu_dma_buf_kmap_atomic,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
+-	.map = ipu_dma_buf_kmap,
+-#endif
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+-	.map_atomic = ipu_dma_buf_kmap_atomic,
+-#endif
+ 	.mmap = ipu_dma_buf_mmap,
+ 	.vmap = ipu_dma_buf_vmap,
+ 	.vunmap = ipu_dma_buf_vunmap,
+@@ -563,9 +504,7 @@ static int ipu_psys_getbuf(struct ipu_psys_buffer *buf, struct ipu_psys_fh *fh)
+ 	struct ipu_psys_kbuffer *kbuf;
+ 	struct ipu_psys *psys = fh->psys;
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+ 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+-#endif
+ 	struct dma_buf *dbuf;
+ 	int ret;
+ 
+@@ -582,16 +521,12 @@ static int ipu_psys_getbuf(struct ipu_psys_buffer *buf, struct ipu_psys_fh *fh)
+ 	kbuf->userptr = buf->base.userptr;
+ 	kbuf->flags = buf->flags;
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+ 	exp_info.ops = &ipu_dma_buf_ops;
+ 	exp_info.size = kbuf->len;
+ 	exp_info.flags = O_RDWR;
+ 	exp_info.priv = kbuf;
+ 
+ 	dbuf = dma_buf_export(&exp_info);
+-#else
+-	dbuf = dma_buf_export(kbuf, &ipu_dma_buf_ops, kbuf->len, 0);
+-#endif
+ 	if (IS_ERR(dbuf)) {
+ 		kfree(kbuf);
+ 		return PTR_ERR(dbuf);
+diff --git a/drivers/media/pci/intel/ipu-wrapper.c b/drivers/media/pci/intel/ipu-wrapper.c
+index 2f09c3ed9102a..71a72e39ec473 100644
+--- a/drivers/media/pci/intel/ipu-wrapper.c
++++ b/drivers/media/pci/intel/ipu-wrapper.c
+@@ -37,11 +37,7 @@ struct my_css_memory_buffer_item {
+ 	dma_addr_t iova;
+ 	unsigned long *addr;
+ 	size_t bytes;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ };
+ 
+ static struct wrapper_base *get_mem_sub_system(int mmid)
+@@ -244,11 +240,7 @@ u64 shared_memory_alloc(unsigned int mmid, size_t bytes)
+ 
+ 	buf->addr = dma_alloc_attrs(mine->dev, buf->bytes, &buf->iova,
+ 				    GFP_KERNEL,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-				    NULL
+-#else
+ 				    0
+-#endif
+ 	    );
+ 	if (!buf->addr) {
+ 		kfree(buf);
+@@ -293,11 +285,7 @@ void shared_memory_free(unsigned int mmid, u64 addr)
+ 		list_del(&buf->list);
+ 		spin_unlock_irqrestore(&mine->lock, flags);
+ 		dma_free_attrs(mine->dev, buf->bytes, buf->addr, buf->iova,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			       &buf->attrs
+-#else
+ 			       buf->attrs
+-#endif
+ 		    );
+ 		kfree(buf);
+ 		return;
+diff --git a/drivers/media/pci/intel/ipu.c b/drivers/media/pci/intel/ipu.c
+index 720e802395790..bd5cc0412d20e 100644
+--- a/drivers/media/pci/intel/ipu.c
++++ b/drivers/media/pci/intel/ipu.c
+@@ -573,29 +573,6 @@ static void ipu_pci_remove(struct pci_dev *pdev)
+ 	release_firmware(isp->cpd_fw);
+ }
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+-static void ipu_pci_reset_notify(struct pci_dev *pdev, bool prepare)
+-{
+-	struct ipu_device *isp = pci_get_drvdata(pdev);
+-
+-	if (prepare) {
+-		dev_err(&pdev->dev, "FLR prepare\n");
+-		pm_runtime_forbid(&isp->pdev->dev);
+-		isp->flr_done = true;
+-		return;
+-	}
+-
+-	ipu_buttress_restore(isp);
+-	if (isp->secure_mode)
+-		ipu_buttress_reset_authentication(isp);
+-
+-	ipu_bus_flr_recovery();
+-	isp->ipc_reinit = true;
+-	pm_runtime_allow(&isp->pdev->dev);
+-
+-	dev_err(&pdev->dev, "FLR completed\n");
+-}
+-#else
+ static void ipu_pci_reset_prepare(struct pci_dev *pdev)
+ {
+ 	struct ipu_device *isp = pci_get_drvdata(pdev);
+@@ -619,7 +596,6 @@ static void ipu_pci_reset_done(struct pci_dev *pdev)
+ 
+ 	dev_warn(&pdev->dev, "FLR completed\n");
+ }
+-#endif
+ 
+ #ifdef CONFIG_PM
+ 
+@@ -702,12 +678,8 @@ static const struct pci_device_id ipu_pci_tbl[] = {
+ MODULE_DEVICE_TABLE(pci, ipu_pci_tbl);
+ 
+ static const struct pci_error_handlers pci_err_handlers = {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+-	.reset_notify = ipu_pci_reset_notify,
+-#else
+ 	.reset_prepare = ipu_pci_reset_prepare,
+ 	.reset_done = ipu_pci_reset_done,
+-#endif
+ };
+ 
+ static struct pci_driver ipu_pci_driver = {
+diff --git a/drivers/media/pci/intel/ipu4/ipu4-isys-isa.c b/drivers/media/pci/intel/ipu4/ipu4-isys-isa.c
+index c8d9dac4d3628..f93dff3adcefe 100644
+--- a/drivers/media/pci/intel/ipu4/ipu4-isys-isa.c
++++ b/drivers/media/pci/intel/ipu4/ipu4-isys-isa.c
+@@ -240,13 +240,7 @@ void ipu_isys_isa_cleanup(struct ipu_isys_isa *isa)
+ }
+ 
+ static void isa_set_ffmt(struct v4l2_subdev *sd,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+-			 struct v4l2_subdev_fh *cfg,
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+-			 struct v4l2_subdev_pad_config *cfg,
+-#else
+ 	     struct v4l2_subdev_state *cfg,
+-#endif
+ 			 struct v4l2_subdev_format *fmt)
+ {
+ 	struct v4l2_mbus_framefmt *ffmt =
+@@ -403,41 +397,22 @@ static int isa_config_buf_init(struct vb2_buffer *vb)
+ 	struct ipu_isys_video *av = ipu_isys_queue_to_video(aq);
+ 	struct ipu_isys_isa_buffer *isa_buf =
+ 	    vb2_buffer_to_ipu_isys_isa_buffer(vb);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ 	int rval;
+ 
+ 	rval = isa_3a_buf_init(vb);
+ 	if (rval)
+ 		return rval;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	init_dma_attrs(&attrs);
+-	dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+-	attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+-
+ 	isa_buf->pgl.common_pg =
+ 	    dma_alloc_attrs(&av->isys->adev->dev, PGL_SIZE << 1,
+ 			    &isa_buf->pgl.iova, GFP_KERNEL | __GFP_ZERO,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-			    &attrs
+-#else
+ 			    attrs
+-#endif
+ 	    );
+ 
+ 	dev_dbg(&av->isys->adev->dev,
+ 		"buf_init: index %u, cpu addr %p, dma addr %pad\n",
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		vb->v4l2_buf.index,
+-#else
+ 		vb->index,
+-#endif
+ 		isa_buf->pgl.common_pg, &isa_buf->pgl.iova);
+ 
+ 	if (!isa_buf->pgl.common_pg) {
+@@ -454,37 +429,18 @@ static void isa_config_buf_cleanup(struct vb2_buffer *vb)
+ 	struct ipu_isys_video *av = ipu_isys_queue_to_video(aq);
+ 	struct ipu_isys_isa_buffer *isa_buf =
+ 	    vb2_buffer_to_ipu_isys_isa_buffer(vb);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	struct dma_attrs attrs;
+-#else
+ 	unsigned long attrs;
+-#endif
+ 
+ 	dev_dbg(&av->isys->adev->dev,
+ 		"buf_cleanup: index %u, cpu addr %p, dma addr %pad\n",
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		vb->v4l2_buf.index,
+-#else
+ 		vb->index,
+-#endif
+ 		isa_buf->pgl.pg, &isa_buf->pgl.iova);
+ 	if (!isa_buf->pgl.pg)
+ 		return;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-	init_dma_attrs(&attrs);
+-	dma_set_attr(DMA_ATTR_NON_CONSISTENT, &attrs);
+-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+-	attrs = DMA_ATTR_NON_CONSISTENT;
+-#endif
+-
+ 	dma_free_attrs(&av->isys->adev->dev, PGL_SIZE << 1,
+ 		       isa_buf->pgl.common_pg, isa_buf->pgl.iova,
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+-		       &attrs
+-#else
+ 		       attrs
+-#endif
+ 	    );
+ 
+ 	isa_3a_buf_cleanup(vb);
+@@ -720,11 +676,7 @@ static int isa_terminal_buf_prepare(struct vb2_buffer *vb)
+ 
+ 	for (i = 0; i < ISA_CFG_BUF_PLANES; i++) {
+ 		vb2_set_plane_payload(vb, i, av->mpix.plane_fmt[i].sizeimage);
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-		vb->v4l2_planes[i].data_offset = 0;
+-#else
+ 		vb->planes[i].data_offset = 0;
+-#endif
+ 	}
+ 
+ 	return isa_import_pg(vb);
+@@ -880,11 +832,7 @@ isa_config_fill_frame_buff_set_pin(struct vb2_buffer *vb,
+ 	    vb2_buffer_to_ipu_isys_isa_buffer(vb);
+ 
+ 	set->process_group_light.addr = isa_buf->pgl.iova;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+-	set->process_group_light.param_buf_id = vb->v4l2_buf.index + 1;
+-#else
+ 	set->process_group_light.param_buf_id = vb->index + 1;
+-#endif
+ }
+ 
+ static void isa_ctrl_init(struct v4l2_subdev *sd)
+diff --git a/drivers/media/pci/intel/ipu4/ipu4-psys.c b/drivers/media/pci/intel/ipu4/ipu4-psys.c
+index 73e2b7ca22b71..34a59e84c4966 100644
+--- a/drivers/media/pci/intel/ipu4/ipu4-psys.c
++++ b/drivers/media/pci/intel/ipu4/ipu4-psys.c
+@@ -10,11 +10,7 @@
+ #include <linux/kthread.h>
+ #include <linux/init_task.h>
+ #include <linux/version.h>
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+-#include <linux/sched.h>
+-#else
+ #include <uapi/linux/sched/types.h>
+-#endif
+ #include <linux/module.h>
+ #include <linux/fs.h>
+ 
+@@ -746,15 +742,9 @@ void ipu_psys_watchdog_work(struct work_struct *work)
+ 	mutex_unlock(&psys->mutex);
+ }
+ 
+-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 14, 2)
+-static void ipu_psys_watchdog(unsigned long data)
+-{
+-	struct ipu_psys_kcmd *kcmd = (struct ipu_psys_kcmd *)data;
+-#else
+ static void ipu_psys_watchdog(struct timer_list *t)
+ {
+ 	struct ipu_psys_kcmd *kcmd = from_timer(kcmd, t, watchdog);
+-#endif
+ 	struct ipu_psys *psys = kcmd->fh->psys;
+ 
+ 	queue_work(IPU_PSYS_WORK_QUEUE, &psys->watchdog_work);
+@@ -900,13 +890,7 @@ int ipu_psys_kcmd_new(struct ipu_psys_command *cmd, struct ipu_psys_fh *fh)
+ 	if (!kcmd)
+ 		return -EINVAL;
+ 
+-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 14, 2)
+-	init_timer(&kcmd->watchdog);
+-	kcmd->watchdog.data = (unsigned long)kcmd;
+-	kcmd->watchdog.function = &ipu_psys_watchdog;
+-#else
+ 	timer_setup(&kcmd->watchdog, ipu_psys_watchdog, 0);
+-#endif
+ 
+ 	if (cmd->min_psys_freq) {
+ 		kcmd->constraint.min_freq = cmd->min_psys_freq;
+diff --git a/drivers/media/platform/intel/ipu4-acpi.c b/drivers/media/platform/intel/ipu4-acpi.c
+index 2488aef2ae0bb..4db674e268a77 100644
+--- a/drivers/media/platform/intel/ipu4-acpi.c
++++ b/drivers/media/platform/intel/ipu4-acpi.c
+@@ -676,13 +676,7 @@ static int get_smiapp_pdata(struct i2c_client *client,
+ 			    struct ipu4_i2c_helper *helper,
+ 			    void *priv, size_t size)
+ {
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+-	struct smiapp_platform_data *pdata;
+-#elseif LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+-	struct smiapp_hwconfig *pdata;
+-#else
+     struct ccs_hwconfig *pdata;
+-#endif
+ 	uint64_t *source = priv;
+ 
+ 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+@@ -691,11 +685,6 @@ static int get_smiapp_pdata(struct i2c_client *client,
+ 	data->pdata = pdata;
+ 
+ 	data->priv = source;
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+-	pdata->xshutdown = get_sensor_gpio(&client->dev, 0);
+-	if (pdata->xshutdown < 0)
+-		return -ENODEV;
+-#endif
+ 
+ 	ipu_acpi_get_sensor_data(&client->dev, data, NULL);
+ 
+-- 
+2.34.1
+

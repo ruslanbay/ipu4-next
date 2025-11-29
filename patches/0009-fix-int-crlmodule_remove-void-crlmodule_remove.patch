@@ -1,0 +1,46 @@
+From 16ed5ab0919ae9df3c3e6e3c042f763d11a692af Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Fri, 28 Nov 2025 13:32:33 +0100
+Subject: [PATCH 09/16] fix: int crlmodule_remove -> void crlmodule_remove
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+drivers/media/i2c/crlmodule/crlmodule-core.c: In function ‘crlmodule_get_frame_desc’:
+drivers/media/i2c/crlmodule/crlmodule-core.c:2366:32: warning: comparison between ‘enum v4l2_mbus_frame_desc_type’ and ‘enum crl_frame_desc_type’ [-Wenum-compare]
+ 2366 |                 if (desc->type == CRL_V4L2_MBUS_FRAME_DESC_TYPE_CSI2) {
+      |                                ^~
+drivers/media/i2c/crlmodule/crlmodule-core.c: At top level:
+drivers/media/i2c/crlmodule/crlmodule-core.c:3508:19: error: initialization of ‘void (*)(struct i2c_client *)’ from incompatible pointer type ‘int (*)(struct i2c_client *)’ [-Werror=incompatible-pointer-types]
+ 3508 |         .remove = crlmodule_remove,
+      |                   ^~~~~~~~~~~~~~~~
+drivers/media/i2c/crlmodule/crlmodule-core.c:3508:19: note: (near initialization for ‘crlmodule_i2c_driver.remove’)
+---
+ drivers/media/i2c/crlmodule/crlmodule-core.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/media/i2c/crlmodule/crlmodule-core.c b/drivers/media/i2c/crlmodule/crlmodule-core.c
+index 06093c99a..d070f86ed 100644
+--- a/drivers/media/i2c/crlmodule/crlmodule-core.c
++++ b/drivers/media/i2c/crlmodule/crlmodule-core.c
+@@ -3451,7 +3451,7 @@ static void crlmodule_free_controls(struct crl_sensor *sensor)
+ 		v4l2_ctrl_handler_free(&sensor->ssds[i].ctrl_handler);
+ }
+ 
+-static int crlmodule_remove(struct i2c_client *client)
++static void crlmodule_remove(struct i2c_client *client)
+ {
+ 	struct v4l2_subdev *subdev = i2c_get_clientdata(client);
+ 	struct crl_sensor *sensor = to_crlmodule_sensor(subdev);
+@@ -3481,8 +3481,6 @@ static int crlmodule_remove(struct i2c_client *client)
+ 	crlmodule_release_msrlist(&sensor->msr_list);
+ 
+ 	pm_runtime_disable(&client->dev);
+-
+-	return 0;
+ }
+ 
+ 
+-- 
+2.34.1
+

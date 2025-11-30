@@ -17,7 +17,7 @@ sudo cp -rf IPU_binary/usr/* /usr
 
 ```bash
 cd libcamerahal && \
-    mkdir build && \
+    mkdir -p build && \
     cd build  && \
     cmake ../  && \
     make -j$(nproc) && \

@@ -77,8 +77,15 @@ Device Drivers > Multimedia support > Media drivers > Media PCI Adapters
   - intel ipu hardware platform type (Compile for SOC)
     - (X) Compile for SOC
 
+
+Device Drivers > Multimedia support > Media drivers > V4L platform devices
+ - <M> Enable built in platform data for ipu4p
+
 Device Drivers > Multimedia support > Media ancillary drivers > Camera sensor devices
  - <M> CRL Module sensor support
+
+Device Drivers > Staging drivers > Media staging drivers > Enable support to Intel Atom ISP camera drivers
+ - < > Omnivision ov5693 sensor support
 ```
 
 ## 6. Build the kernel

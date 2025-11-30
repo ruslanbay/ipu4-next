@@ -1,0 +1,26 @@
+From 3ff1f043e48b2ff20754f49fd10567cc186aa1be Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Fri, 28 Nov 2025 13:02:11 +0100
+Subject: [PATCH 07/16] Remove the VIDEO_V4L2 dependency to be able to choose
+ the crlmodule option in the make menuconfig
+
+---
+ drivers/media/i2c/crlmodule/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/crlmodule/Kconfig b/drivers/media/i2c/crlmodule/Kconfig
+index a0ce116a5..357c73c20 100644
+--- a/drivers/media/i2c/crlmodule/Kconfig
++++ b/drivers/media/i2c/crlmodule/Kconfig
+@@ -1,7 +1,7 @@
+ config VIDEO_CRLMODULE
+ 	tristate "CRL Module sensor support"
+ 	depends on I2C
+-    depends on VIDEO_V4L2
++    # depends on VIDEO_V4L2
+     depends on VIDEO_V4L2_SUBDEV_API
+ 	depends on MEDIA_CAMERA_SUPPORT
+     select V4L2_ASYNC
+-- 
+2.34.1
+

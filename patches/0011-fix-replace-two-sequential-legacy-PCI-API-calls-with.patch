@@ -1,0 +1,40 @@
+From 7b2d406b395643120ad7d57aabcf7fe9bbc93852 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Fri, 28 Nov 2025 14:08:23 +0100
+Subject: [PATCH 11/16] fix: replace two sequential legacy PCI API calls with a
+ single modern call using the unified DMA API
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+drivers/media/pci/intel/ipu4/../ipu.c: In function ‘ipu_pci_probe’:
+drivers/media/pci/intel/ipu4/../ipu.c:416:16: error: implicit declaration of function ‘pci_set_dma_mask’ [-Werror=implicit-function-declaration]
+  416 |         rval = pci_set_dma_mask(pdev, DMA_BIT_MASK(dma_mask));
+      |                ^~~~~~~~~~~~~~~~
+  CC [M]  drivers/media/test-drivers/vimc/vimc-streamer.o
+drivers/media/pci/intel/ipu4/../ipu.c:418:24: error: implicit declaration of function ‘pci_set_consistent_dma_mask’ [-Werror=implicit-function-declaration]
+  418 |                 rval = pci_set_consistent_dma_mask(pdev,
+      |
+---
+ drivers/media/pci/intel/ipu.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu.c b/drivers/media/pci/intel/ipu.c
+index bd5cc0412..b74e21523 100644
+--- a/drivers/media/pci/intel/ipu.c
++++ b/drivers/media/pci/intel/ipu.c
+@@ -413,10 +413,7 @@ static int ipu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	isys_base = isp->base + isys_ipdata.hw_variant.offset;
+ 	psys_base = isp->base + psys_ipdata.hw_variant.offset;
+ 
+-	rval = pci_set_dma_mask(pdev, DMA_BIT_MASK(dma_mask));
+-	if (!rval)
+-		rval = pci_set_consistent_dma_mask(pdev,
+-						   DMA_BIT_MASK(dma_mask));
++	rval = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(dma_mask));
+ 	if (rval) {
+ 		dev_err(&pdev->dev, "Failed to set DMA mask (%d)\n", rval);
+ 		trace_printk("E|TMWK\n");
+-- 
+2.34.1
+

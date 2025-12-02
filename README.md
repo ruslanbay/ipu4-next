@@ -64,7 +64,7 @@ Execute this to avoid common build errors related to missing cryptographic keys:
 
 ## 5. Modify kernel configuration
 
-To enable or disable any features using the kernel configuration, run `make editconfig` or `make oldconfig`.
+To enable or disable any features using the kernel configuration, run `make menuconfig` or `make oldconfig`. Or you can use `make localmodconfig` to create a config based on current config and loaded modules (lsmod).
 
 This will invoke the menuconfig interface for you to edit specific configuration files related to the Ubuntu kernel package. You will need to explicitly respond with Y or N when making any config changes to avoid getting errors later in the build process.
 
@@ -76,7 +76,6 @@ Device Drivers > Multimedia support > Media drivers > Media PCI Adapters
     - (X) Compile for IPU4P driver
   - intel ipu hardware platform type (Compile for SOC)
     - (X) Compile for SOC
-
 
 Device Drivers > Multimedia support > Media drivers > V4L platform devices
  - <M> Enable built in platform data for ipu4p
@@ -94,7 +93,7 @@ You are now ready to build the kernel.
 
 ```bash
 make clean && \
-    make -j12 bindeb-pkg LOCALVERSION=-ipu4p
+    make -j$(nproc) bindeb-pkg LOCALVERSION=-ipu4p
 ```
 
 **Note**: *Run `make clean` to clean the build environment each time before you recompile the kernel **after making any changes** to the kernel source or configuration.*
@@ -156,46 +155,102 @@ sudo systemctl reboot
 <details>
   <summary>
     <strong>
-      journalctl -b | grep -Ei "ipu4|ov5693|INT33BE|ov8865|INT347A"
+      journalctl -b | grep -Ei "ipu4|ov5693|INT33BE|ov8865|INT347"
     </strong>
   </summary>
 
 ```
-kernel: Intel platform data PCI quirk for IPU4P
+systemd-modules-load[369]: Inserted module 'ipu4_acpi'
 kernel: intel-ipu4 intel-ipu: enabling device (0000 -> 0002)
 kernel: intel-ipu4 intel-ipu: Device 0x8a19 (rev: 0x3)
 kernel: intel-ipu4 intel-ipu: physical base address 0x6000000000
-kernel: intel-ipu4 intel-ipu: mapped as: 0x000000000ec9c5e0
+kernel: intel-ipu4 intel-ipu: mapped as: 0x00000000eeb5127c
 kernel: intel-ipu4 intel-ipu: update security control register failed
 kernel: intel-ipu4 intel-ipu: Unable to set secure mode!
 kernel: intel-ipu4 intel-ipu: IPU in secure mode
 kernel: intel-ipu4 intel-ipu: cpd file name: ipu4p_cpd.bin
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
 kernel: intel-ipu4 intel-ipu: Moduledata version: 20191030, library version: 20181222
 kernel: intel-ipu4 intel-ipu: CSS release: 20181222
-kernel: atomisp_ov5693: module is from the staging directory, the quality is unknown, you have been warned.
 kernel: intel-ipu4 intel-ipu: IPU driver verion 1.0
-kernel: Error: Driver 'ov5693' is already registered, aborting...
-kernel: intel-ipu4-mmu intel-ipu4-mmu0: MMU: 1, allocated page for trash: 0x0000000000cc6b58
+kernel: intel-ipu4-mmu intel-ipu4-mmu0: MMU: 1, allocated page for trash: 0x0000000027f16d47
 kernel: intel-ipu4-mmu intel-ipu4-mmu0: mmu is not ready yet. skipping.
-kernel: intel-ipu4-mmu intel-ipu4-mmu1: MMU: 0, allocated page for trash: 0x00000000d553fd6c
+kernel: intel-ipu4-mmu intel-ipu4-mmu1: MMU: 0, allocated page for trash: 0x00000000dcf6af34
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
 kernel: intel-ipu4-mmu intel-ipu4-mmu0: mmu is not ready yet. skipping.
 kernel: intel-ipu4-mmu intel-ipu4-mmu0: iova trash buffer for MMUID: 1 is 4286578688
-kernel: intel-ipu4-isys intel-ipu4-isys0: isys probe 00000000606edab2 00000000606edab2
+kernel: intel-ipu4-isys intel-ipu4-isys0: isys probe 00000000c67f5b70 00000000c67f5b70
 kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI-2 0 was not initialized!
+kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI-2 1 was not initialized!
+kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI-2 2 was not initialized!
+kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI-2 3 was not initialized!
 kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI-2 4 was not initialized!
 kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI2 BE SOC was not initialized!
 kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 CSI2 BE was not initialized!
 kernel: intel-ipu4-isys intel-ipu4-isys0: Entity type for entity Intel IPU4 ISA was not initialized!
-kernel: intel-ipu4-isys intel-ipu4-isys0: can't find adapter
-kernel: intel-ipu4-isys intel-ipu4-isys0: can't find adapter
-kernel: intel-ipu4-isys intel-ipu4-isys0: can't find adapter
-kernel: intel-ipu4-isys intel-ipu4-isys0: can't find adapter
+kernel: intel-ipu4-isys intel-ipu4-isys0: no subdevice info provided
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
 kernel: intel-ipu4-mmu intel-ipu4-mmu1: mmu is not ready yet. skipping.
 kernel: intel-ipu4-mmu intel-ipu4-mmu1: iova trash buffer for MMUID: 0 is 4286578688
 kernel: intel-ipu4-psys intel-ipu4-psys0: pkg_dir entry count:12
 kernel: intel-ipu4 intel-ipu: Sending BOOT_LOAD to CSE
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
 kernel: intel-ipu4 intel-ipu: Sending AUTHENTICATE_RUN to CSE
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
 kernel: intel-ipu4-psys intel-ipu4-psys0: psys probe minor: 0
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dvdd not found, using dummy regulator
+kernel: ov8865 i2c-INT347A:00: supply dovdd not found, using dummy regulator
+kernel: i2c i2c-INT347A:00: deferred probe pending
+kernel: i2c i2c-INT33BE:00: deferred probe pending
 ```
 </details></br>
 
@@ -233,6 +288,21 @@ ipu4p (PCI:pci:intel-ipu):
 	/dev/video22
 	/dev/video23
 	/dev/video24
+	/dev/video25
+	/dev/video26
+	/dev/video27
+	/dev/video28
+	/dev/video29
+	/dev/video30
+	/dev/video31
+	/dev/video32
+	/dev/video33
+	/dev/video34
+	/dev/video35
+	/dev/video36
+	/dev/video37
+	/dev/video38
+	/dev/video39
 
 ipu4p (pci:intel-ipu):
 	/dev/media0
@@ -319,7 +389,7 @@ parm:           secure_mode:IPU secure mode enable
 <details>
   <summary>
     <strong>
-      lsmod | grep -Ei "ipu4|ov5693|INT33BE|ov8865|INT347A"
+      lsmod | grep -Ei "ipu4|ov5693|INT33BE|ov8865|INT347"
     </strong>
   </summary>
 
@@ -327,17 +397,21 @@ parm:           secure_mode:IPU secure mode enable
 intel_ipu4p_psys       65536  0
 intel_ipu4p_psys_csslib   143360  1 intel_ipu4p_psys
 intel_ipu4p_isys      172032  0
-intel_ipu4p_isys_csslib    65536  1 intel_ipu4p_isys
 videobuf2_dma_contig    24576  1 intel_ipu4p_isys
+intel_ipu4p_isys_csslib    65536  1 intel_ipu4p_isys
 videobuf2_v4l2         32768  1 intel_ipu4p_isys
 videobuf2_common       81920  4 videobuf2_dma_contig,videobuf2_v4l2,intel_ipu4p_isys,videobuf2_memops
-intel_ipu4p           110592  4 intel_ipu4p_psys,intel_ipu4p_isys
+intel_skl_int3472_tps68470    20480  0
 ov5693                 24576  0
+intel_ipu4p           110592  4 intel_ipu4p_psys,intel_ipu4p_isys
 ov8865                 32768  0
+intel_skl_int3472_discrete    24576  0
 v4l2_fwnode            32768  2 ov5693,ov8865
-v4l2_async             28672  3 v4l2_fwnode,ov5693,ov8865
-videodev              282624  6 v4l2_async,videobuf2_v4l2,ov5693,videobuf2_common,intel_ipu4p_isys,ov8865
-mc                     77824  7 v4l2_async,videodev,videobuf2_v4l2,ov5693,videobuf2_common,intel_ipu4p_isys,ov8865
+intel_skl_int3472_common    16384  2 intel_skl_int3472_tps68470,intel_skl_int3472_discrete
+v4l2_async             28672  4 v4l2_fwnode,crlmodule,ov5693,ov8865
+videodev              278528  7 v4l2_async,crlmodule,videobuf2_v4l2,ov5693,videobuf2_common,intel_ipu4p_isys,ov8865
+mc                     77824  8 v4l2_async,videodev,crlmodule,videobuf2_v4l2,ov5693,videobuf2_common,intel_ipu4p_isys,ov8865
+ipu4_acpi              24576  0
 ```
 </details></br>
 
@@ -350,41 +424,57 @@ mc                     77824  7 v4l2_async,videodev,videobuf2_v4l2,ov5693,videob
 
 ```
 v4l-subdev0: Intel IPU4 CSI-2 0
-v4l-subdev1: Intel IPU4 CSI-2 4
-v4l-subdev2: Intel IPU4 TPG 0
-v4l-subdev3: Intel IPU4 TPG 1
-v4l-subdev4: Intel IPU4 CSI2 BE SOC
-v4l-subdev5: Intel IPU4 CSI2 BE
-v4l-subdev6: Intel IPU4 ISA
+v4l-subdev1: Intel IPU4 CSI-2 1
+v4l-subdev2: Intel IPU4 CSI-2 2
+v4l-subdev3: Intel IPU4 CSI-2 3
+v4l-subdev4: Intel IPU4 CSI-2 4
+v4l-subdev5: Intel IPU4 TPG 0
+v4l-subdev6: Intel IPU4 TPG 1
+v4l-subdev7: Intel IPU4 CSI2 BE SOC
+v4l-subdev8: Intel IPU4 CSI2 BE
+v4l-subdev9: Intel IPU4 ISA
 video0: Intel IPU4 CSI-2 0 capture 0
 video1: Intel IPU4 CSI-2 0 capture 1
 video2: Intel IPU4 CSI-2 0 capture 2
 video3: Intel IPU4 CSI-2 0 capture 3
 video4: Intel IPU4 CSI-2 0 meta
-video5: Intel IPU4 CSI-2 4 capture 0
-video6: Intel IPU4 CSI-2 4 capture 1
-video7: Intel IPU4 CSI-2 4 capture 2
-video8: Intel IPU4 CSI-2 4 capture 3
-video9: Intel IPU4 CSI-2 4 meta
-video10: Intel IPU4 TPG 0 capture
-video11: Intel IPU4 TPG 1 capture
-video12: Intel IPU4 BE SOC capture 0
-video13: Intel IPU4 BE SOC capture 1
-video14: Intel IPU4 BE SOC capture 2
-video15: Intel IPU4 BE SOC capture 3
-video16: Intel IPU4 BE SOC capture 4
-video17: Intel IPU4 BE SOC capture 5
-video18: Intel IPU4 BE SOC capture 6
-video19: Intel IPU4 BE SOC capture 7
-video20: Intel IPU4 CSI2 BE capture
-video21: Intel IPU4 ISA capture
-video22: Intel IPU4 ISA config
-video23: Intel IPU4 ISA 3A stats
-video24: Intel IPU4 ISA scaled capture
-
+video5: Intel IPU4 CSI-2 1 capture 0
+video6: Intel IPU4 CSI-2 1 capture 1
+video7: Intel IPU4 CSI-2 1 capture 2
+video8: Intel IPU4 CSI-2 1 capture 3
+video9: Intel IPU4 CSI-2 1 meta
+video10: Intel IPU4 CSI-2 2 capture 0
+video11: Intel IPU4 CSI-2 2 capture 1
+video12: Intel IPU4 CSI-2 2 capture 2
+video13: Intel IPU4 CSI-2 2 capture 3
+video14: Intel IPU4 CSI-2 2 meta
+video15: Intel IPU4 CSI-2 3 capture 0
+video16: Intel IPU4 CSI-2 3 capture 1
+video17: Intel IPU4 CSI-2 3 capture 2
+video18: Intel IPU4 CSI-2 3 capture 3
+video19: Intel IPU4 CSI-2 3 meta
+video20: Intel IPU4 CSI-2 4 capture 0
+video21: Intel IPU4 CSI-2 4 capture 1
+video22: Intel IPU4 CSI-2 4 capture 2
+video23: Intel IPU4 CSI-2 4 capture 3
+video24: Intel IPU4 CSI-2 4 meta
+video25: Intel IPU4 TPG 0 capture
+video26: Intel IPU4 TPG 1 capture
+video27: Intel IPU4 BE SOC capture 0
+video28: Intel IPU4 BE SOC capture 1
+video29: Intel IPU4 BE SOC capture 2
+video30: Intel IPU4 BE SOC capture 3
+video31: Intel IPU4 BE SOC capture 4
+video32: Intel IPU4 BE SOC capture 5
+video33: Intel IPU4 BE SOC capture 6
+video34: Intel IPU4 BE SOC capture 7
+video35: Intel IPU4 CSI2 BE capture
+video36: Intel IPU4 ISA capture
+video37: Intel IPU4 ISA config
+video38: Intel IPU4 ISA 3A stats
+video39: Intel IPU4 ISA scaled capture
 media0: ipu4p
 /dev/media0:
-
 Media controller API version 6.1.158
 
 Media device information
@@ -397,13 +487,13 @@ hw revision     0x0
 driver version  6.1.158
 
 Device topology
-- entity 1: Intel IPU4 CSI-2 0 (6 pads, 41 links)
+- entity 1: Intel IPU4 CSI-2 0 (6 pads, 41 links, 0 routes)
             type V4L2 subdev subtype Unknown flags 0
             device node name /dev/v4l-subdev0
 	pad0: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 	pad1: Source
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		-> "Intel IPU4 CSI-2 0 capture 0":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -415,7 +505,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad2: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 0 capture 1":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -427,7 +517,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad3: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 0 capture 2":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -439,7 +529,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad4: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 0 capture 3":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -483,13 +573,271 @@ Device topology
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 0":5 []
 
-- entity 38: Intel IPU4 CSI-2 4 (6 pads, 41 links)
+- entity 38: Intel IPU4 CSI-2 1 (6 pads, 41 links, 0 routes)
              type V4L2 subdev subtype Unknown flags 0
              device node name /dev/v4l-subdev1
 	pad0: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 	pad1: Source
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+		-> "Intel IPU4 CSI-2 1 capture 0":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad2: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 1 capture 1":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad3: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 1 capture 2":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad4: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 1 capture 3":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad5: Source
+		-> "Intel IPU4 CSI-2 1 meta":0 []
+
+- entity 45: Intel IPU4 CSI-2 1 capture 0 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video5
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 1":1 []
+
+- entity 51: Intel IPU4 CSI-2 1 capture 1 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video6
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 1":2 []
+
+- entity 57: Intel IPU4 CSI-2 1 capture 2 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video7
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 1":3 []
+
+- entity 63: Intel IPU4 CSI-2 1 capture 3 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video8
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 1":4 []
+
+- entity 69: Intel IPU4 CSI-2 1 meta (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video9
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 1":5 []
+
+- entity 75: Intel IPU4 CSI-2 2 (6 pads, 41 links, 0 routes)
+             type V4L2 subdev subtype Unknown flags 0
+             device node name /dev/v4l-subdev2
+	pad0: Sink
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+	pad1: Source
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+		-> "Intel IPU4 CSI-2 2 capture 0":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad2: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 2 capture 1":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad3: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 2 capture 2":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad4: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 2 capture 3":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad5: Source
+		-> "Intel IPU4 CSI-2 2 meta":0 []
+
+- entity 82: Intel IPU4 CSI-2 2 capture 0 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video10
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 2":1 []
+
+- entity 88: Intel IPU4 CSI-2 2 capture 1 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video11
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 2":2 []
+
+- entity 94: Intel IPU4 CSI-2 2 capture 2 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video12
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 2":3 []
+
+- entity 100: Intel IPU4 CSI-2 2 capture 3 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video13
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 2":4 []
+
+- entity 106: Intel IPU4 CSI-2 2 meta (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video14
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 2":5 []
+
+- entity 112: Intel IPU4 CSI-2 3 (6 pads, 41 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+              device node name /dev/v4l-subdev3
+	pad0: Sink
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+	pad1: Source
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+		-> "Intel IPU4 CSI-2 3 capture 0":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad2: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 3 capture 1":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad3: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 3 capture 2":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad4: Source
+		[stream:0 fmt:unknown/0x0]
+		-> "Intel IPU4 CSI-2 3 capture 3":0 []
+		-> "Intel IPU4 CSI2 BE":0 []
+		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":1 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":2 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":3 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":4 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":5 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
+		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
+	pad5: Source
+		-> "Intel IPU4 CSI-2 3 meta":0 []
+
+- entity 119: Intel IPU4 CSI-2 3 capture 0 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video15
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 3":1 []
+
+- entity 125: Intel IPU4 CSI-2 3 capture 1 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video16
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 3":2 []
+
+- entity 131: Intel IPU4 CSI-2 3 capture 2 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video17
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 3":3 []
+
+- entity 137: Intel IPU4 CSI-2 3 capture 3 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video18
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 3":4 []
+
+- entity 143: Intel IPU4 CSI-2 3 meta (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video19
+	pad0: Sink
+		<- "Intel IPU4 CSI-2 3":5 []
+
+- entity 149: Intel IPU4 CSI-2 4 (6 pads, 41 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+              device node name /dev/v4l-subdev4
+	pad0: Sink
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
+	pad1: Source
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		-> "Intel IPU4 CSI-2 4 capture 0":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -501,7 +849,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad2: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 4 capture 1":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -513,7 +861,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad3: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 4 capture 2":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -525,7 +873,7 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 	pad4: Source
-		[fmt:unknown/0x0]
+		[stream:0 fmt:unknown/0x0]
 		-> "Intel IPU4 CSI-2 4 capture 3":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -539,41 +887,41 @@ Device topology
 	pad5: Source
 		-> "Intel IPU4 CSI-2 4 meta":0 []
 
-- entity 45: Intel IPU4 CSI-2 4 capture 0 (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video5
+- entity 156: Intel IPU4 CSI-2 4 capture 0 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video20
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 4":1 []
 
-- entity 51: Intel IPU4 CSI-2 4 capture 1 (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video6
+- entity 162: Intel IPU4 CSI-2 4 capture 1 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video21
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 4":2 []
 
-- entity 57: Intel IPU4 CSI-2 4 capture 2 (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video7
+- entity 168: Intel IPU4 CSI-2 4 capture 2 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video22
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 4":3 []
 
-- entity 63: Intel IPU4 CSI-2 4 capture 3 (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video8
+- entity 174: Intel IPU4 CSI-2 4 capture 3 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video23
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 4":4 []
 
-- entity 69: Intel IPU4 CSI-2 4 meta (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video9
+- entity 180: Intel IPU4 CSI-2 4 meta (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video24
 	pad0: Sink
 		<- "Intel IPU4 CSI-2 4":5 []
 
-- entity 75: Intel IPU4 TPG 0 (1 pad, 10 links)
-             type V4L2 subdev subtype Sensor flags 0
-             device node name /dev/v4l-subdev2
+- entity 186: Intel IPU4 TPG 0 (1 pad, 10 links, 0 routes)
+              type V4L2 subdev subtype Sensor flags 0
+              device node name /dev/v4l-subdev5
 	pad0: Source
-		[fmt:SBGGR8_1X8/4096x3072 field:none]
+		[stream:0 fmt:SBGGR8_1X8/4096x3072 field:none]
 		-> "Intel IPU4 TPG 0 capture":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -585,17 +933,17 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 
-- entity 77: Intel IPU4 TPG 0 capture (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video10
+- entity 188: Intel IPU4 TPG 0 capture (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video25
 	pad0: Sink
 		<- "Intel IPU4 TPG 0":0 []
 
-- entity 83: Intel IPU4 TPG 1 (1 pad, 10 links)
-             type V4L2 subdev subtype Sensor flags 0
-             device node name /dev/v4l-subdev3
+- entity 194: Intel IPU4 TPG 1 (1 pad, 10 links, 0 routes)
+              type V4L2 subdev subtype Sensor flags 0
+              device node name /dev/v4l-subdev6
 	pad0: Source
-		[fmt:SBGGR8_1X8/4096x3072 field:none]
+		[stream:0 fmt:SBGGR8_1X8/4096x3072 field:none]
 		-> "Intel IPU4 TPG 1 capture":0 []
 		-> "Intel IPU4 CSI2 BE":0 []
 		-> "Intel IPU4 CSI2 BE SOC":0 [DYNAMIC]
@@ -607,21 +955,33 @@ Device topology
 		-> "Intel IPU4 CSI2 BE SOC":6 [DYNAMIC]
 		-> "Intel IPU4 CSI2 BE SOC":7 [DYNAMIC]
 
-- entity 85: Intel IPU4 TPG 1 capture (1 pad, 1 link)
-             type Node subtype V4L flags 0
-             device node name /dev/video11
+- entity 196: Intel IPU4 TPG 1 capture (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video26
 	pad0: Sink
 		<- "Intel IPU4 TPG 1":0 []
 
-- entity 91: Intel IPU4 CSI2 BE SOC (16 pads, 88 links)
-             type V4L2 subdev subtype Unknown flags 0
-             device node name /dev/v4l-subdev4
+- entity 202: Intel IPU4 CSI2 BE SOC (16 pads, 184 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+              device node name /dev/v4l-subdev7
 	pad0: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -629,11 +989,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad1: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -641,11 +1013,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad2: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -653,11 +1037,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad3: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -665,11 +1061,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad4: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -677,11 +1085,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad5: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -689,11 +1109,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad6: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -701,11 +1133,23 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad7: Sink
-		[fmt:Y10_1X10/4096x3072 field:none]
+		[stream:0 fmt:Y10_1X10/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":3 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 0":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 1":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 2":4 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":1 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":2 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":3 [DYNAMIC]
+		<- "Intel IPU4 CSI-2 3":4 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":1 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":2 [DYNAMIC]
 		<- "Intel IPU4 CSI-2 4":3 [DYNAMIC]
@@ -713,95 +1157,107 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 [DYNAMIC]
 		<- "Intel IPU4 TPG 1":0 [DYNAMIC]
 	pad8: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 0":0 [DYNAMIC]
 	pad9: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 1":0 [DYNAMIC]
 	pad10: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 2":0 [DYNAMIC]
 	pad11: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 3":0 [DYNAMIC]
 	pad12: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 4":0 [DYNAMIC]
 	pad13: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 5":0 [DYNAMIC]
 	pad14: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 6":0 [DYNAMIC]
 	pad15: Source
-		[fmt:unknown/0x0
+		[stream:0 fmt:unknown/0x0
 		 crop:(0,0)/0x0]
 		-> "Intel IPU4 BE SOC capture 7":0 [DYNAMIC]
 
-- entity 108: Intel IPU4 BE SOC capture 0 (1 pad, 1 link)
+- entity 219: Intel IPU4 BE SOC capture 0 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video12
+              device node name /dev/video27
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":8 [DYNAMIC]
 
-- entity 114: Intel IPU4 BE SOC capture 1 (1 pad, 1 link)
+- entity 225: Intel IPU4 BE SOC capture 1 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video13
+              device node name /dev/video28
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":9 [DYNAMIC]
 
-- entity 120: Intel IPU4 BE SOC capture 2 (1 pad, 1 link)
+- entity 231: Intel IPU4 BE SOC capture 2 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video14
+              device node name /dev/video29
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":10 [DYNAMIC]
 
-- entity 126: Intel IPU4 BE SOC capture 3 (1 pad, 1 link)
+- entity 237: Intel IPU4 BE SOC capture 3 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video15
+              device node name /dev/video30
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":11 [DYNAMIC]
 
-- entity 132: Intel IPU4 BE SOC capture 4 (1 pad, 1 link)
+- entity 243: Intel IPU4 BE SOC capture 4 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video16
+              device node name /dev/video31
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":12 [DYNAMIC]
 
-- entity 138: Intel IPU4 BE SOC capture 5 (1 pad, 1 link)
+- entity 249: Intel IPU4 BE SOC capture 5 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video17
+              device node name /dev/video32
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":13 [DYNAMIC]
 
-- entity 144: Intel IPU4 BE SOC capture 6 (1 pad, 1 link)
+- entity 255: Intel IPU4 BE SOC capture 6 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video18
+              device node name /dev/video33
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":14 [DYNAMIC]
 
-- entity 150: Intel IPU4 BE SOC capture 7 (1 pad, 1 link)
+- entity 261: Intel IPU4 BE SOC capture 7 (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video19
+              device node name /dev/video34
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE SOC":15 [DYNAMIC]
 
-- entity 156: Intel IPU4 CSI2 BE (2 pads, 12 links)
+- entity 267: Intel IPU4 CSI2 BE (2 pads, 24 links, 0 routes)
               type V4L2 subdev subtype Unknown flags 0
-              device node name /dev/v4l-subdev5
+              device node name /dev/v4l-subdev8
 	pad0: Sink
-		[fmt:SBGGR14_1X14/4096x3072 field:none]
+		[stream:0 fmt:SBGGR14_1X14/4096x3072 field:none]
 		<- "Intel IPU4 CSI-2 0":1 []
 		<- "Intel IPU4 CSI-2 0":2 []
 		<- "Intel IPU4 CSI-2 0":3 []
 		<- "Intel IPU4 CSI-2 0":4 []
+		<- "Intel IPU4 CSI-2 1":1 []
+		<- "Intel IPU4 CSI-2 1":2 []
+		<- "Intel IPU4 CSI-2 1":3 []
+		<- "Intel IPU4 CSI-2 1":4 []
+		<- "Intel IPU4 CSI-2 2":1 []
+		<- "Intel IPU4 CSI-2 2":2 []
+		<- "Intel IPU4 CSI-2 2":3 []
+		<- "Intel IPU4 CSI-2 2":4 []
+		<- "Intel IPU4 CSI-2 3":1 []
+		<- "Intel IPU4 CSI-2 3":2 []
+		<- "Intel IPU4 CSI-2 3":3 []
+		<- "Intel IPU4 CSI-2 3":4 []
 		<- "Intel IPU4 CSI-2 4":1 []
 		<- "Intel IPU4 CSI-2 4":2 []
 		<- "Intel IPU4 CSI-2 4":3 []
@@ -809,60 +1265,60 @@ Device topology
 		<- "Intel IPU4 TPG 0":0 []
 		<- "Intel IPU4 TPG 1":0 []
 	pad1: Source
-		[fmt:SBGGR14_1X14/4096x3072 field:none
+		[stream:0 fmt:SBGGR14_1X14/4096x3072 field:none
 		 crop:(0,0)/4096x3072]
 		-> "Intel IPU4 CSI2 BE capture":0 []
 		-> "Intel IPU4 ISA":0 []
 
-- entity 159: Intel IPU4 CSI2 BE capture (1 pad, 1 link)
+- entity 270: Intel IPU4 CSI2 BE capture (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video20
+              device node name /dev/video35
 	pad0: Sink
 		<- "Intel IPU4 CSI2 BE":1 []
 
-- entity 165: Intel IPU4 ISA (5 pads, 5 links)
+- entity 276: Intel IPU4 ISA (5 pads, 5 links, 0 routes)
               type V4L2 subdev subtype Unknown flags 0
-              device node name /dev/v4l-subdev6
+              device node name /dev/v4l-subdev9
 	pad0: Sink
-		[fmt:SBGGR14_1X14/4096x3072 field:none]
+		[stream:0 fmt:SBGGR14_1X14/4096x3072 field:none]
 		<- "Intel IPU4 CSI2 BE":1 []
 	pad1: Source
-		[fmt:SBGGR12_1X12/4096x3072 field:none
+		[stream:0 fmt:SBGGR12_1X12/4096x3072 field:none
 		 crop:(0,0)/4096x3072]
 		-> "Intel IPU4 ISA capture":0 []
 	pad2: Sink
-		[fmt:FIXED/0x0]
+		[stream:0 fmt:FIXED/0x0]
 		<- "Intel IPU4 ISA config":0 []
 	pad3: Source
-		[fmt:FIXED/0x0]
+		[stream:0 fmt:FIXED/0x0]
 		-> "Intel IPU4 ISA 3A stats":0 []
 	pad4: Source
-		[fmt:SBGGR12_1X12/4096x3072 field:none
+		[stream:0 fmt:SBGGR12_1X12/4096x3072 field:none
 		 crop:(0,0)/4096x3072
 		 compose:(0,0)/4096x3072]
 		-> "Intel IPU4 ISA scaled capture":0 []
 
-- entity 171: Intel IPU4 ISA capture (1 pad, 1 link)
+- entity 282: Intel IPU4 ISA capture (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video21
+              device node name /dev/video36
 	pad0: Sink
 		<- "Intel IPU4 ISA":1 []
 
-- entity 177: Intel IPU4 ISA config (1 pad, 1 link)
+- entity 288: Intel IPU4 ISA config (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video22
+              device node name /dev/video37
 	pad0: Source
 		-> "Intel IPU4 ISA":2 []
 
-- entity 183: Intel IPU4 ISA 3A stats (1 pad, 1 link)
+- entity 294: Intel IPU4 ISA 3A stats (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video23
+              device node name /dev/video38
 	pad0: Sink
 		<- "Intel IPU4 ISA":3 []
 
-- entity 189: Intel IPU4 ISA scaled capture (1 pad, 1 link)
+- entity 300: Intel IPU4 ISA scaled capture (1 pad, 1 link)
               type Node subtype V4L flags 0
-              device node name /dev/video24
+              device node name /dev/video39
 	pad0: Sink
 		<- "Intel IPU4 ISA":4 []
 ```

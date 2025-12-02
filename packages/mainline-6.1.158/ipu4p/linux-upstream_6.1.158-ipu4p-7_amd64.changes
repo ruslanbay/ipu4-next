@@ -1,0 +1,38 @@
+Format: 1.8
+Date: Tue, 02 Dec 2025 19:42:05 +0100
+Source: linux-upstream
+Binary: linux-headers-6.1.158-ipu4p linux-image-6.1.158-ipu4p linux-image-6.1.158-ipu4p-dbg linux-libc-dev
+Built-For-Profiles: noudeb
+Architecture: amd64
+Version: 6.1.158-ipu4p-7
+Distribution: noble
+Urgency: low
+Maintainer: user <user@iPhone14>
+Changed-By: user <user@iPhone14>
+Description:
+ linux-headers-6.1.158-ipu4p - Linux kernel headers for 6.1.158-ipu4p on amd64
+ linux-image-6.1.158-ipu4p - Linux kernel, version 6.1.158-ipu4p
+ linux-image-6.1.158-ipu4p-dbg - Linux kernel debugging symbols for 6.1.158-ipu4p
+ linux-libc-dev - Linux support headers for userspace development
+Changes:
+ linux-upstream (6.1.158-ipu4p-7) noble; urgency=low
+ .
+   * Custom built Linux kernel.
+Checksums-Sha1:
+ b8b34acf007187e3bb7cc6aea8ec7e7906f8bcbd 9095656 linux-headers-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ 17468c17a5e3d2b6e9b6fec2c47f2537fb7e094b 248185802 linux-image-6.1.158-ipu4p-dbg_6.1.158-ipu4p-7_amd64.deb
+ ec76fbd348a2514d7242ab5eec697e7856831958 21883024 linux-image-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ d611d0b8039c7974cdd3b5575e71d7332599633d 1320362 linux-libc-dev_6.1.158-ipu4p-7_amd64.deb
+ b75e7dcf6f2586ecf41779d520ee84c580ff2045 6879 linux-upstream_6.1.158-ipu4p-7_amd64.buildinfo
+Checksums-Sha256:
+ 9732b81eb81f8446af9324f726ec42ffb6fd2f950dee2502a06a3960279794b8 9095656 linux-headers-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ 06036477cd19fceb1a8f053f6508274f94e11a65c69a57ea1f813724f5bb92fb 248185802 linux-image-6.1.158-ipu4p-dbg_6.1.158-ipu4p-7_amd64.deb
+ 03e4bef37c7904d585fd07c3ebc7324e0b06d72fe327d2cdef3d6811f88a0f5d 21883024 linux-image-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ 9d55b3d06352db5338b1e880ab191c0d18173ed42008525cd929786eafadcd92 1320362 linux-libc-dev_6.1.158-ipu4p-7_amd64.deb
+ a2f912738e0b2819568cb939d6903a3090bc16eeeaa6bd176b2e006c11876727 6879 linux-upstream_6.1.158-ipu4p-7_amd64.buildinfo
+Files:
+ aaa7812882d17efcf81472eb090296de 9095656 kernel optional linux-headers-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ 5bf08f0e94e04c03b27cf32c7d04c3ab 248185802 debug optional linux-image-6.1.158-ipu4p-dbg_6.1.158-ipu4p-7_amd64.deb
+ 4a6e3f0cae3b9c4ba5e345a304a9afde 21883024 kernel optional linux-image-6.1.158-ipu4p_6.1.158-ipu4p-7_amd64.deb
+ ba7194f0f3ecebea6367c0dff02be92c 1320362 devel optional linux-libc-dev_6.1.158-ipu4p-7_amd64.deb
+ 7c09e8718524659e91503adcd28d1eb3 6879 kernel optional linux-upstream_6.1.158-ipu4p-7_amd64.buildinfo

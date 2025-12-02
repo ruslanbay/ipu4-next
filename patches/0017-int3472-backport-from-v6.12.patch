@@ -1,0 +1,1067 @@
+From c0d675c5eeea7f146a0d9d7198c75a9dda51f024 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Tue, 2 Dec 2025 20:02:49 +0100
+Subject: [PATCH] int3472: backport from v6.12
+
+---
+ drivers/leds/led-class.c                      |  29 ++
+ drivers/platform/x86/intel/int3472/Kconfig    |   1 +
+ drivers/platform/x86/intel/int3472/Makefile   |   9 +-
+ .../x86/intel/int3472/clk_and_regulator.c     | 203 +++++++++---
+ drivers/platform/x86/intel/int3472/common.c   |   7 +
+ drivers/platform/x86/intel/int3472/common.h   |  43 ++-
+ drivers/platform/x86/intel/int3472/discrete.c | 297 ++++++++----------
+ drivers/platform/x86/intel/int3472/led.c      |  59 ++++
+ include/linux/leds.h                          |  18 ++
+ 9 files changed, 435 insertions(+), 231 deletions(-)
+ create mode 100644 drivers/platform/x86/intel/int3472/led.c
+
+diff --git a/drivers/leds/led-class.c b/drivers/leds/led-class.c
+index 93fdca5c7..b27e02d73 100644
+--- a/drivers/leds/led-class.c
++++ b/drivers/leds/led-class.c
+@@ -22,6 +22,8 @@
+ #include <linux/of.h>
+ #include "leds.h"
+ 
++static DEFINE_MUTEX(leds_lookup_lock);
++static LIST_HEAD(leds_lookup_list);
+ static struct class *leds_class;
+ 
+ static ssize_t brightness_show(struct device *dev,
+@@ -258,6 +260,33 @@ struct led_classdev *of_led_get(struct device_node *np, int index)
+ }
+ EXPORT_SYMBOL_GPL(of_led_get);
+ 
++/**
++ * led_add_lookup() - Add a LED lookup table entry
++ * @led_lookup: the lookup table entry to add
++ *
++ * Add a LED lookup table entry. On systems without devicetree the lookup table
++ * is used by led_get() to find LEDs.
++ */
++void led_add_lookup(struct led_lookup_data *led_lookup)
++{
++	mutex_lock(&leds_lookup_lock);
++	list_add_tail(&led_lookup->list, &leds_lookup_list);
++	mutex_unlock(&leds_lookup_lock);
++}
++EXPORT_SYMBOL_GPL(led_add_lookup);
++
++/**
++ * led_remove_lookup() - Remove a LED lookup table entry
++ * @led_lookup: the lookup table entry to remove
++ */
++void led_remove_lookup(struct led_lookup_data *led_lookup)
++{
++	mutex_lock(&leds_lookup_lock);
++	list_del(&led_lookup->list);
++	mutex_unlock(&leds_lookup_lock);
++}
++EXPORT_SYMBOL_GPL(led_remove_lookup);
++
+ /**
+  * led_put() - release a LED device
+  * @led_cdev: LED device
+diff --git a/drivers/platform/x86/intel/int3472/Kconfig b/drivers/platform/x86/intel/int3472/Kconfig
+index 62e5d4cf9..17ae997f9 100644
+--- a/drivers/platform/x86/intel/int3472/Kconfig
++++ b/drivers/platform/x86/intel/int3472/Kconfig
+@@ -4,6 +4,7 @@ config INTEL_SKL_INT3472
+ 	depends on COMMON_CLK
+ 	depends on I2C
+ 	depends on GPIOLIB
++	depends on LEDS_CLASS
+ 	depends on REGULATOR
+ 	select MFD_CORE
+ 	select REGMAP_I2C
+diff --git a/drivers/platform/x86/intel/int3472/Makefile b/drivers/platform/x86/intel/int3472/Makefile
+index cfec7784c..a8aba07bf 100644
+--- a/drivers/platform/x86/intel/int3472/Makefile
++++ b/drivers/platform/x86/intel/int3472/Makefile
+@@ -1,4 +1,7 @@
+ obj-$(CONFIG_INTEL_SKL_INT3472)		+= intel_skl_int3472_discrete.o \
+-					   intel_skl_int3472_tps68470.o
+-intel_skl_int3472_discrete-y		:= discrete.o clk_and_regulator.o common.o
+-intel_skl_int3472_tps68470-y		:= tps68470.o tps68470_board_data.o common.o
++					   intel_skl_int3472_tps68470.o \
++					   intel_skl_int3472_common.o
++intel_skl_int3472_discrete-y		:= discrete.o clk_and_regulator.o led.o
++intel_skl_int3472_tps68470-y		:= tps68470.o tps68470_board_data.o
++
++intel_skl_int3472_common-y		+= common.o
+diff --git a/drivers/platform/x86/intel/int3472/clk_and_regulator.c b/drivers/platform/x86/intel/int3472/clk_and_regulator.c
+index 74dc2cff7..16e36ac0a 100644
+--- a/drivers/platform/x86/intel/int3472/clk_and_regulator.c
++++ b/drivers/platform/x86/intel/int3472/clk_and_regulator.c
+@@ -5,12 +5,48 @@
+ #include <linux/clkdev.h>
+ #include <linux/clk-provider.h>
+ #include <linux/device.h>
++#include <linux/dmi.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/regulator/driver.h>
+ #include <linux/slab.h>
+ 
+ #include "common.h"
+ 
++/*
++ * 82c0d13a-78c5-4244-9bb1-eb8b539a8d11
++ * This _DSM GUID allows controlling the sensor clk when it is not controlled
++ * through a GPIO.
++ */
++static const guid_t img_clk_guid =
++	GUID_INIT(0x82c0d13a, 0x78c5, 0x4244,
++		  0x9b, 0xb1, 0xeb, 0x8b, 0x53, 0x9a, 0x8d, 0x11);
++
++static void skl_int3472_enable_clk(struct int3472_clock *clk, int enable)
++{
++	struct int3472_discrete_device *int3472 = to_int3472_device(clk);
++	union acpi_object args[3];
++	union acpi_object argv4;
++
++	if (clk->ena_gpio) {
++		gpiod_set_value_cansleep(clk->ena_gpio, enable);
++		return;
++	}
++
++	args[0].integer.type = ACPI_TYPE_INTEGER;
++	args[0].integer.value = clk->imgclk_index;
++	args[1].integer.type = ACPI_TYPE_INTEGER;
++	args[1].integer.value = enable;
++	args[2].integer.type = ACPI_TYPE_INTEGER;
++	args[2].integer.value = 1;
++
++	argv4.type = ACPI_TYPE_PACKAGE;
++	argv4.package.count = 3;
++	argv4.package.elements = args;
++
++	acpi_evaluate_dsm(acpi_device_handle(int3472->adev), &img_clk_guid,
++			  0, 1, &argv4);
++}
++
+ /*
+  * The regulators have to have .ops to be valid, but the only ops we actually
+  * support are .enable and .disable which are handled via .ena_gpiod. Pass an
+@@ -20,20 +56,13 @@ static const struct regulator_ops int3472_gpio_regulator_ops;
+ 
+ static int skl_int3472_clk_prepare(struct clk_hw *hw)
+ {
+-	struct int3472_gpio_clock *clk = to_int3472_clk(hw);
+-
+-	gpiod_set_value_cansleep(clk->ena_gpio, 1);
+-	gpiod_set_value_cansleep(clk->led_gpio, 1);
+-
++	skl_int3472_enable_clk(to_int3472_clk(hw), 1);
+ 	return 0;
+ }
+ 
+ static void skl_int3472_clk_unprepare(struct clk_hw *hw)
+ {
+-	struct int3472_gpio_clock *clk = to_int3472_clk(hw);
+-
+-	gpiod_set_value_cansleep(clk->ena_gpio, 0);
+-	gpiod_set_value_cansleep(clk->led_gpio, 0);
++	skl_int3472_enable_clk(to_int3472_clk(hw), 0);
+ }
+ 
+ static int skl_int3472_clk_enable(struct clk_hw *hw)
+@@ -76,7 +105,7 @@ static unsigned int skl_int3472_get_clk_frequency(struct int3472_discrete_device
+ static unsigned long skl_int3472_clk_recalc_rate(struct clk_hw *hw,
+ 						 unsigned long parent_rate)
+ {
+-	struct int3472_gpio_clock *clk = to_int3472_clk(hw);
++	struct int3472_clock *clk = to_int3472_clk(hw);
+ 
+ 	return clk->frequency;
+ }
+@@ -89,14 +118,63 @@ static const struct clk_ops skl_int3472_clock_ops = {
+ 	.recalc_rate = skl_int3472_clk_recalc_rate,
+ };
+ 
+-int skl_int3472_register_clock(struct int3472_discrete_device *int3472)
++int skl_int3472_register_dsm_clock(struct int3472_discrete_device *int3472)
+ {
++	struct acpi_device *adev = int3472->adev;
+ 	struct clk_init_data init = {
+ 		.ops = &skl_int3472_clock_ops,
+ 		.flags = CLK_GET_RATE_NOCACHE,
+ 	};
+ 	int ret;
+ 
++	if (int3472->clock.cl)
++		return 0; /* A GPIO controlled clk has already been registered */
++
++	if (!acpi_check_dsm(adev->handle, &img_clk_guid, 0, BIT(1)))
++		return 0; /* DSM clock control is not available */
++
++	init.name = kasprintf(GFP_KERNEL, "%s-clk", acpi_dev_name(adev));
++	if (!init.name)
++		return -ENOMEM;
++
++	int3472->clock.frequency = skl_int3472_get_clk_frequency(int3472);
++	int3472->clock.clk_hw.init = &init;
++	int3472->clock.clk = clk_register(&adev->dev, &int3472->clock.clk_hw);
++	if (IS_ERR(int3472->clock.clk)) {
++		ret = PTR_ERR(int3472->clock.clk);
++		goto out_free_init_name;
++	}
++
++	int3472->clock.cl = clkdev_create(int3472->clock.clk, NULL, int3472->sensor_name);
++	if (!int3472->clock.cl) {
++		ret = -ENOMEM;
++		goto err_unregister_clk;
++	}
++
++	kfree(init.name);
++	return 0;
++
++err_unregister_clk:
++	clk_unregister(int3472->clock.clk);
++out_free_init_name:
++	kfree(init.name);
++	return ret;
++}
++
++int skl_int3472_register_gpio_clock(struct int3472_discrete_device *int3472,
++				    struct gpio_desc *gpio)
++{
++	struct clk_init_data init = {
++		.ops = &skl_int3472_clock_ops,
++		.flags = CLK_GET_RATE_NOCACHE,
++	};
++	int ret;
++
++	if (int3472->clock.cl)
++		return -EBUSY;
++
++	int3472->clock.ena_gpio = gpio;
++
+ 	init.name = kasprintf(GFP_KERNEL, "%s-clk",
+ 			      acpi_dev_name(int3472->adev));
+ 	if (!init.name)
+@@ -132,36 +210,79 @@ int skl_int3472_register_clock(struct int3472_discrete_device *int3472)
+ 
+ void skl_int3472_unregister_clock(struct int3472_discrete_device *int3472)
+ {
++	if (!int3472->clock.cl)
++		return;
++
+ 	clkdev_drop(int3472->clock.cl);
+ 	clk_unregister(int3472->clock.clk);
+ }
+ 
++/*
++ * The INT3472 device is going to be the only supplier of a regulator for
++ * the sensor device. But unlike the clk framework the regulator framework
++ * does not allow matching by consumer-device-name only.
++ *
++ * Ideally all sensor drivers would use "avdd" as supply-id. But for drivers
++ * where this cannot be changed because another supply-id is already used in
++ * e.g. DeviceTree files an alias for the other supply-id can be added here.
++ *
++ * Do not forget to update GPIO_REGULATOR_SUPPLY_MAP_COUNT when changing this.
++ */
++static const char * const skl_int3472_regulator_map_supplies[] = {
++	"avdd",
++	"AVDD",
++};
++
++static_assert(ARRAY_SIZE(skl_int3472_regulator_map_supplies) ==
++	      GPIO_REGULATOR_SUPPLY_MAP_COUNT);
++
++/*
++ * On some models there is a single GPIO regulator which is shared between
++ * sensors and only listed in the ACPI resources of one sensor.
++ * This DMI table contains the name of the second sensor. This is used to add
++ * entries for the second sensor to the supply_map.
++ */
++static const struct dmi_system_id skl_int3472_regulator_second_sensor[] = {
++	{
++		/* Lenovo Miix 510-12IKB */
++		.matches = {
++			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
++			DMI_MATCH(DMI_PRODUCT_VERSION, "MIIX 510-12IKB"),
++		},
++		.driver_data = "i2c-OVTI2680:00",
++	},
++	{ }
++};
++
+ int skl_int3472_register_regulator(struct int3472_discrete_device *int3472,
+-				   struct acpi_resource_gpio *agpio)
++				   struct gpio_desc *gpio)
+ {
+-	const struct int3472_sensor_config *sensor_config;
+-	char *path = agpio->resource_source.string_ptr;
+-	struct regulator_consumer_supply supply_map;
+ 	struct regulator_init_data init_data = { };
+ 	struct regulator_config cfg = { };
+-	int ret;
+-
+-	sensor_config = int3472->sensor_config;
+-	if (IS_ERR(sensor_config)) {
+-		dev_err(int3472->dev, "No sensor module config\n");
+-		return PTR_ERR(sensor_config);
+-	}
+-
+-	if (!sensor_config->supply_map.supply) {
+-		dev_err(int3472->dev, "No supply name defined\n");
+-		return -ENODEV;
++	const char *second_sensor = NULL;
++	const struct dmi_system_id *id;
++	int i, j;
++
++	id = dmi_first_match(skl_int3472_regulator_second_sensor);
++	if (id)
++		second_sensor = id->driver_data;
++
++	for (i = 0, j = 0; i < ARRAY_SIZE(skl_int3472_regulator_map_supplies); i++) {
++		int3472->regulator.supply_map[j].supply = skl_int3472_regulator_map_supplies[i];
++		int3472->regulator.supply_map[j].dev_name = int3472->sensor_name;
++		j++;
++
++		if (second_sensor) {
++			int3472->regulator.supply_map[j].supply =
++				skl_int3472_regulator_map_supplies[i];
++			int3472->regulator.supply_map[j].dev_name = second_sensor;
++			j++;
++		}
+ 	}
+ 
+ 	init_data.constraints.valid_ops_mask = REGULATOR_CHANGE_STATUS;
+-	init_data.num_consumer_supplies = 1;
+-	supply_map = sensor_config->supply_map;
+-	supply_map.dev_name = int3472->sensor_name;
+-	init_data.consumer_supplies = &supply_map;
++	init_data.consumer_supplies = int3472->regulator.supply_map;
++	init_data.num_consumer_supplies = j;
+ 
+ 	snprintf(int3472->regulator.regulator_name,
+ 		 sizeof(int3472->regulator.regulator_name), "%s-regulator",
+@@ -174,15 +295,7 @@ int skl_int3472_register_regulator(struct int3472_discrete_device *int3472,
+ 						int3472->regulator.supply_name,
+ 						&int3472_gpio_regulator_ops);
+ 
+-	int3472->regulator.gpio = acpi_get_and_request_gpiod(path, agpio->pin_table[0],
+-							     "int3472,regulator");
+-	if (IS_ERR(int3472->regulator.gpio)) {
+-		dev_err(int3472->dev, "Failed to get regulator GPIO line\n");
+-		return PTR_ERR(int3472->regulator.gpio);
+-	}
+-
+-	/* Ensure the pin is in output mode and non-active state */
+-	gpiod_direction_output(int3472->regulator.gpio, 0);
++	int3472->regulator.gpio = gpio;
+ 
+ 	cfg.dev = &int3472->adev->dev;
+ 	cfg.init_data = &init_data;
+@@ -191,21 +304,11 @@ int skl_int3472_register_regulator(struct int3472_discrete_device *int3472,
+ 	int3472->regulator.rdev = regulator_register(int3472->dev,
+ 						     &int3472->regulator.rdesc,
+ 						     &cfg);
+-	if (IS_ERR(int3472->regulator.rdev)) {
+-		ret = PTR_ERR(int3472->regulator.rdev);
+-		goto err_free_gpio;
+-	}
+ 
+-	return 0;
+-
+-err_free_gpio:
+-	gpiod_put(int3472->regulator.gpio);
+-
+-	return ret;
++	return PTR_ERR_OR_ZERO(int3472->regulator.rdev);
+ }
+ 
+ void skl_int3472_unregister_regulator(struct int3472_discrete_device *int3472)
+ {
+ 	regulator_unregister(int3472->regulator.rdev);
+-	gpiod_put(int3472->regulator.gpio);
+ }
+diff --git a/drivers/platform/x86/intel/int3472/common.c b/drivers/platform/x86/intel/int3472/common.c
+index 9db2bb0bb..b3a2578e0 100644
+--- a/drivers/platform/x86/intel/int3472/common.c
++++ b/drivers/platform/x86/intel/int3472/common.c
+@@ -29,6 +29,7 @@ union acpi_object *skl_int3472_get_acpi_buffer(struct acpi_device *adev, char *i
+ 
+ 	return obj;
+ }
++EXPORT_SYMBOL_GPL(skl_int3472_get_acpi_buffer);
+ 
+ int skl_int3472_fill_cldb(struct acpi_device *adev, struct int3472_cldb *cldb)
+ {
+@@ -52,6 +53,7 @@ int skl_int3472_fill_cldb(struct acpi_device *adev, struct int3472_cldb *cldb)
+ 	kfree(obj);
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(skl_int3472_fill_cldb);
+ 
+ /* sensor_adev_ret may be NULL, name_ret must not be NULL */
+ int skl_int3472_get_sensor_adev_and_name(struct device *dev,
+@@ -80,3 +82,8 @@ int skl_int3472_get_sensor_adev_and_name(struct device *dev,
+ 
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(skl_int3472_get_sensor_adev_and_name);
++
++MODULE_DESCRIPTION("Intel SkyLake INT3472 ACPI Device Driver library");
++MODULE_AUTHOR("Daniel Scally <djrscally@gmail.com>");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/platform/x86/intel/int3472/common.h b/drivers/platform/x86/intel/int3472/common.h
+index 53270d19c..145dec66d 100644
+--- a/drivers/platform/x86/intel/int3472/common.h
++++ b/drivers/platform/x86/intel/int3472/common.h
+@@ -6,6 +6,7 @@
+ 
+ #include <linux/clk-provider.h>
+ #include <linux/gpio/machine.h>
++#include <linux/leds.h>
+ #include <linux/regulator/driver.h>
+ #include <linux/regulator/machine.h>
+ #include <linux/types.h>
+@@ -27,6 +28,9 @@
+ 
+ #define GPIO_REGULATOR_NAME_LENGTH				21
+ #define GPIO_REGULATOR_SUPPLY_NAME_LENGTH			9
++#define GPIO_REGULATOR_SUPPLY_MAP_COUNT				2
++
++#define INT3472_LED_MAX_NAME_LEN				32
+ 
+ #define CIO2_SENSOR_SSDB_MCLKSPEED_OFFSET			86
+ 
+@@ -40,7 +44,7 @@
+ 	}
+ 
+ #define to_int3472_clk(hw)					\
+-	container_of(hw, struct int3472_gpio_clock, clk_hw)
++	container_of(hw, struct int3472_clock, clk_hw)
+ 
+ #define to_int3472_device(clk)					\
+ 	container_of(clk, struct int3472_discrete_device, clock)
+@@ -61,18 +65,9 @@ struct int3472_cldb {
+ 	u8 control_logic_type;
+ 	u8 control_logic_id;
+ 	u8 sensor_card_sku;
+-	u8 reserved[28];
+-};
+-
+-struct int3472_gpio_function_remap {
+-	const char *documented;
+-	const char *actual;
+-};
+-
+-struct int3472_sensor_config {
+-	const char *sensor_module_name;
+-	struct regulator_consumer_supply supply_map;
+-	const struct int3472_gpio_function_remap *function_maps;
++	u8 reserved[10];
++	u8 clock_source;
++	u8 reserved2[17];
+ };
+ 
+ struct int3472_discrete_device {
+@@ -84,6 +79,8 @@ struct int3472_discrete_device {
+ 	const struct int3472_sensor_config *sensor_config;
+ 
+ 	struct int3472_gpio_regulator {
++		/* SUPPLY_MAP_COUNT * 2 to make room for second sensor mappings */
++		struct regulator_consumer_supply supply_map[GPIO_REGULATOR_SUPPLY_MAP_COUNT * 2];
+ 		char regulator_name[GPIO_REGULATOR_NAME_LENGTH];
+ 		char supply_name[GPIO_REGULATOR_SUPPLY_NAME_LENGTH];
+ 		struct gpio_desc *gpio;
+@@ -91,15 +88,22 @@ struct int3472_discrete_device {
+ 		struct regulator_desc rdesc;
+ 	} regulator;
+ 
+-	struct int3472_gpio_clock {
++	struct int3472_clock {
+ 		struct clk *clk;
+ 		struct clk_hw clk_hw;
+ 		struct clk_lookup *cl;
+ 		struct gpio_desc *ena_gpio;
+-		struct gpio_desc *led_gpio;
+ 		u32 frequency;
++		u8 imgclk_index;
+ 	} clock;
+ 
++	struct int3472_pled {
++		struct led_classdev classdev;
++		struct led_lookup_data lookup;
++		char name[INT3472_LED_MAX_NAME_LEN];
++		struct gpio_desc *gpio;
++	} pled;
++
+ 	unsigned int ngpios; /* how many GPIOs have we seen */
+ 	unsigned int n_sensor_gpios; /* how many have we mapped to sensor */
+ 	struct gpiod_lookup_table gpios;
+@@ -112,11 +116,16 @@ int skl_int3472_get_sensor_adev_and_name(struct device *dev,
+ 					 struct acpi_device **sensor_adev_ret,
+ 					 const char **name_ret);
+ 
+-int skl_int3472_register_clock(struct int3472_discrete_device *int3472);
++int skl_int3472_register_gpio_clock(struct int3472_discrete_device *int3472,
++				    struct gpio_desc *gpio);
++int skl_int3472_register_dsm_clock(struct int3472_discrete_device *int3472);
+ void skl_int3472_unregister_clock(struct int3472_discrete_device *int3472);
+ 
+ int skl_int3472_register_regulator(struct int3472_discrete_device *int3472,
+-				   struct acpi_resource_gpio *agpio);
++				   struct gpio_desc *gpio);
+ void skl_int3472_unregister_regulator(struct int3472_discrete_device *int3472);
+ 
++int skl_int3472_register_pled(struct int3472_discrete_device *int3472, struct gpio_desc *gpio);
++void skl_int3472_unregister_pled(struct int3472_discrete_device *int3472);
++
+ #endif
+diff --git a/drivers/platform/x86/intel/int3472/discrete.c b/drivers/platform/x86/intel/int3472/discrete.c
+index 0f16436e5..0b34e9392 100644
+--- a/drivers/platform/x86/intel/int3472/discrete.c
++++ b/drivers/platform/x86/intel/int3472/discrete.c
+@@ -2,8 +2,7 @@
+ /* Author: Dan Scally <djrscally@gmail.com> */
+ 
+ #include <linux/acpi.h>
+-#include <linux/clkdev.h>
+-#include <linux/clk-provider.h>
++#include <linux/bitfield.h>
+ #include <linux/device.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/gpio/machine.h>
+@@ -12,6 +11,7 @@
+ #include <linux/module.h>
+ #include <linux/overflow.h>
+ #include <linux/platform_device.h>
++// #include <linux/string_choices.h>
+ #include <linux/uuid.h>
+ 
+ #include "common.h"
+@@ -27,6 +27,10 @@ static const guid_t int3472_gpio_guid =
+ 	GUID_INIT(0x79234640, 0x9e10, 0x4fea,
+ 		  0xa5, 0xc1, 0xb5, 0xaa, 0x8b, 0x19, 0x75, 0x6f);
+ 
++#define INT3472_GPIO_DSM_TYPE				GENMASK(7, 0)
++#define INT3472_GPIO_DSM_PIN				GENMASK(15, 8)
++#define INT3472_GPIO_DSM_SENSOR_ON_VAL			GENMASK(31, 24)
++
+ /*
+  * 822ace8f-2814-4174-a56b-5f029fe079ee
+  * This _DSM GUID returns a string from the sensor device, which acts as a
+@@ -36,156 +40,116 @@ static const guid_t cio2_sensor_module_guid =
+ 	GUID_INIT(0x822ace8f, 0x2814, 0x4174,
+ 		  0xa5, 0x6b, 0x5f, 0x02, 0x9f, 0xe0, 0x79, 0xee);
+ 
+-/*
+- * Here follows platform specific mapping information that we can pass to
+- * the functions mapping resources to the sensors. Where the sensors have
+- * a power enable pin defined in DSDT we need to provide a supply name so
+- * the sensor drivers can find the regulator. The device name will be derived
+- * from the sensor's ACPI device within the code. Optionally, we can provide a
+- * NULL terminated array of function name mappings to deal with any platform
+- * specific deviations from the documented behaviour of GPIOs.
+- *
+- * Map a GPIO function name to NULL to prevent the driver from mapping that
+- * GPIO at all.
+- */
+-
+-static const struct int3472_gpio_function_remap ov2680_gpio_function_remaps[] = {
+-	{ "reset", NULL },
+-	{ "powerdown", "reset" },
+-	{ }
+-};
+-
+-static const struct int3472_sensor_config int3472_sensor_configs[] = {
+-	/* Lenovo Miix 510-12ISK - OV2680, Front */
+-	{ "GNDF140809R", { 0 }, ov2680_gpio_function_remaps },
+-	/* Lenovo Miix 510-12ISK - OV5648, Rear */
+-	{ "GEFF150023R", REGULATOR_SUPPLY("avdd", NULL), NULL },
+-	/* Surface Go 1&2 - OV5693, Front */
+-	{ "YHCU", REGULATOR_SUPPLY("avdd", NULL), NULL },
+-};
+-
+-static const struct int3472_sensor_config *
+-skl_int3472_get_sensor_module_config(struct int3472_discrete_device *int3472)
++static void skl_int3472_log_sensor_module_name(struct int3472_discrete_device *int3472)
+ {
+ 	union acpi_object *obj;
+-	unsigned int i;
+ 
+ 	obj = acpi_evaluate_dsm_typed(int3472->sensor->handle,
+ 				      &cio2_sensor_module_guid, 0x00,
+ 				      0x01, NULL, ACPI_TYPE_STRING);
+-
+-	if (!obj) {
+-		dev_err(int3472->dev,
+-			"Failed to get sensor module string from _DSM\n");
+-		return ERR_PTR(-ENODEV);
+-	}
+-
+-	if (obj->string.type != ACPI_TYPE_STRING) {
+-		dev_err(int3472->dev,
+-			"Sensor _DSM returned a non-string value\n");
+-
++	if (obj) {
++		dev_dbg(int3472->dev, "Sensor module id: '%s'\n", obj->string.pointer);
+ 		ACPI_FREE(obj);
+-		return ERR_PTR(-EINVAL);
+ 	}
++}
+ 
+-	for (i = 0; i < ARRAY_SIZE(int3472_sensor_configs); i++) {
+-		if (!strcmp(int3472_sensor_configs[i].sensor_module_name,
+-			    obj->string.pointer))
+-			break;
+-	}
++static int skl_int3472_fill_gpiod_lookup(struct gpiod_lookup *table_entry,
++					 struct acpi_resource_gpio *agpio,
++					 const char *func, u32 polarity)
++{
++	char *path = agpio->resource_source.string_ptr;
++	struct acpi_device *adev;
++	acpi_handle handle;
++	acpi_status status;
+ 
+-	ACPI_FREE(obj);
++	status = acpi_get_handle(NULL, path, &handle);
++	if (ACPI_FAILURE(status))
++		return -EINVAL;
+ 
+-	if (i >= ARRAY_SIZE(int3472_sensor_configs))
+-		return ERR_PTR(-EINVAL);
++	adev = acpi_fetch_acpi_dev(handle);
++	if (!adev)
++		return -ENODEV;
++
++	*table_entry = GPIO_LOOKUP(acpi_dev_name(adev), agpio->pin_table[0], func, polarity);
+ 
+-	return &int3472_sensor_configs[i];
++	return 0;
+ }
+ 
+ static int skl_int3472_map_gpio_to_sensor(struct int3472_discrete_device *int3472,
+ 					  struct acpi_resource_gpio *agpio,
+ 					  const char *func, u32 polarity)
+ {
+-	const struct int3472_sensor_config *sensor_config;
+-	char *path = agpio->resource_source.string_ptr;
+-	struct gpiod_lookup *table_entry;
+-	struct acpi_device *adev;
+-	acpi_handle handle;
+-	acpi_status status;
++	int ret;
+ 
+ 	if (int3472->n_sensor_gpios >= INT3472_MAX_SENSOR_GPIOS) {
+ 		dev_warn(int3472->dev, "Too many GPIOs mapped\n");
+ 		return -EINVAL;
+ 	}
+ 
+-	sensor_config = int3472->sensor_config;
+-	if (!IS_ERR(sensor_config) && sensor_config->function_maps) {
+-		const struct int3472_gpio_function_remap *remap;
++	ret = skl_int3472_fill_gpiod_lookup(&int3472->gpios.table[int3472->n_sensor_gpios],
++					    agpio, func, polarity);
++	if (ret)
++		return ret;
+ 
+-		for (remap = sensor_config->function_maps; remap->documented; remap++) {
+-			if (!strcmp(func, remap->documented)) {
+-				func = remap->actual;
+-				break;
+-			}
+-		}
+-	}
++	int3472->n_sensor_gpios++;
+ 
+-	/* Functions mapped to NULL should not be mapped to the sensor */
+-	if (!func)
+-		return 0;
++	return 0;
++}
+ 
+-	status = acpi_get_handle(NULL, path, &handle);
+-	if (ACPI_FAILURE(status))
+-		return -EINVAL;
++/* This should *really* only be used when there's no other way... */
++static struct gpio_desc *
++skl_int3472_gpiod_get_from_temp_lookup(struct int3472_discrete_device *int3472,
++				       struct acpi_resource_gpio *agpio,
++				       const char *func, u32 polarity)
++{
++	struct gpio_desc *desc;
++	int ret;
+ 
+-	adev = acpi_fetch_acpi_dev(handle);
+-	if (!adev)
+-		return -ENODEV;
++	struct gpiod_lookup_table *lookup __free(kfree) =
++			kzalloc(struct_size(lookup, table, 2), GFP_KERNEL);
++	if (!lookup)
++		return ERR_PTR(-ENOMEM);
+ 
+-	table_entry = &int3472->gpios.table[int3472->n_sensor_gpios];
+-	table_entry->key = acpi_dev_name(adev);
+-	table_entry->chip_hwnum = agpio->pin_table[0];
+-	table_entry->con_id = func;
+-	table_entry->idx = 0;
+-	table_entry->flags = polarity;
++	lookup->dev_id = dev_name(int3472->dev);
++	ret = skl_int3472_fill_gpiod_lookup(&lookup->table[0], agpio, func, polarity);
++	if (ret)
++		return ERR_PTR(ret);
+ 
+-	int3472->n_sensor_gpios++;
++	gpiod_add_lookup_table(lookup);
++	desc = devm_gpiod_get(int3472->dev, func, GPIOD_OUT_LOW);
++	gpiod_remove_lookup_table(lookup);
+ 
+-	return 0;
++	return desc;
+ }
+ 
+-static int skl_int3472_map_gpio_to_clk(struct int3472_discrete_device *int3472,
+-				       struct acpi_resource_gpio *agpio, u8 type)
++static void int3472_get_func_and_polarity(u8 type, const char **func, u32 *polarity)
+ {
+-	char *path = agpio->resource_source.string_ptr;
+-	u16 pin = agpio->pin_table[0];
+-	struct gpio_desc *gpio;
+-
+ 	switch (type) {
++	case INT3472_GPIO_TYPE_RESET:
++		*func = "reset";
++		*polarity = GPIO_ACTIVE_LOW;
++		break;
++	case INT3472_GPIO_TYPE_POWERDOWN:
++		*func = "powerdown";
++		*polarity = GPIO_ACTIVE_LOW;
++		break;
+ 	case INT3472_GPIO_TYPE_CLK_ENABLE:
+-		gpio = acpi_get_and_request_gpiod(path, pin, "int3472,clk-enable");
+-		if (IS_ERR(gpio))
+-			return (PTR_ERR(gpio));
+-
+-		int3472->clock.ena_gpio = gpio;
+-		/* Ensure the pin is in output mode and non-active state */
+-		gpiod_direction_output(int3472->clock.ena_gpio, 0);
++		*func = "clk-enable";
++		*polarity = GPIO_ACTIVE_HIGH;
+ 		break;
+ 	case INT3472_GPIO_TYPE_PRIVACY_LED:
+-		gpio = acpi_get_and_request_gpiod(path, pin, "int3472,privacy-led");
+-		if (IS_ERR(gpio))
+-			return (PTR_ERR(gpio));
+-
+-		int3472->clock.led_gpio = gpio;
+-		/* Ensure the pin is in output mode and non-active state */
+-		gpiod_direction_output(int3472->clock.led_gpio, 0);
++		*func = "privacy-led";
++		*polarity = GPIO_ACTIVE_HIGH;
++		break;
++	case INT3472_GPIO_TYPE_POWER_ENABLE:
++		*func = "power-enable";
++		*polarity = GPIO_ACTIVE_HIGH;
+ 		break;
+ 	default:
+-		dev_err(int3472->dev, "Invalid GPIO type 0x%02x for clock\n", type);
++		*func = "unknown";
++		*polarity = GPIO_ACTIVE_HIGH;
+ 		break;
+ 	}
+-
+-	return 0;
+ }
+ 
+ /**
+@@ -225,10 +189,13 @@ static int skl_int3472_handle_gpio_resources(struct acpi_resource *ares,
+ {
+ 	struct int3472_discrete_device *int3472 = data;
+ 	struct acpi_resource_gpio *agpio;
++	u8 active_value, pin, type;
+ 	union acpi_object *obj;
++	struct gpio_desc *gpio;
+ 	const char *err_msg;
++	const char *func;
++	u32 polarity;
+ 	int ret;
+-	u8 type;
+ 
+ 	if (!acpi_gpio_get_io_resource(ares, &agpio))
+ 		return 1;
+@@ -248,35 +215,65 @@ static int skl_int3472_handle_gpio_resources(struct acpi_resource *ares,
+ 		return 1;
+ 	}
+ 
+-	type = obj->integer.value & 0xff;
++	type = FIELD_GET(INT3472_GPIO_DSM_TYPE, obj->integer.value);
++
++	int3472_get_func_and_polarity(type, &func, &polarity);
++
++	pin = FIELD_GET(INT3472_GPIO_DSM_PIN, obj->integer.value);
++	if (pin != agpio->pin_table[0])
++		dev_warn(int3472->dev, "%s %s pin number mismatch _DSM %d resource %d\n",
++			 func, agpio->resource_source.string_ptr, pin,
++			 agpio->pin_table[0]);
++
++	active_value = FIELD_GET(INT3472_GPIO_DSM_SENSOR_ON_VAL, obj->integer.value);
++	if (!active_value)
++		polarity ^= GPIO_ACTIVE_LOW;
++
++	dev_dbg(int3472->dev, "%s %s pin %d active-%s\n", func,
++		agpio->resource_source.string_ptr, agpio->pin_table[0],
++		str_enable_disable(polarity == GPIO_ACTIVE_HIGH));
+ 
+ 	switch (type) {
+ 	case INT3472_GPIO_TYPE_RESET:
+-		ret = skl_int3472_map_gpio_to_sensor(int3472, agpio, "reset",
+-						     GPIO_ACTIVE_LOW);
+-		if (ret)
+-			err_msg = "Failed to map reset pin to sensor\n";
+-
+-		break;
+ 	case INT3472_GPIO_TYPE_POWERDOWN:
+-		ret = skl_int3472_map_gpio_to_sensor(int3472, agpio, "powerdown",
+-						     GPIO_ACTIVE_LOW);
++		ret = skl_int3472_map_gpio_to_sensor(int3472, agpio, func, polarity);
+ 		if (ret)
+-			err_msg = "Failed to map powerdown pin to sensor\n";
++			err_msg = "Failed to map GPIO pin to sensor\n";
+ 
+ 		break;
+ 	case INT3472_GPIO_TYPE_CLK_ENABLE:
+ 	case INT3472_GPIO_TYPE_PRIVACY_LED:
+-		ret = skl_int3472_map_gpio_to_clk(int3472, agpio, type);
+-		if (ret)
+-			err_msg = "Failed to map GPIO to clock\n";
+-
+-		break;
+ 	case INT3472_GPIO_TYPE_POWER_ENABLE:
+-		ret = skl_int3472_register_regulator(int3472, agpio);
+-		if (ret)
+-			err_msg = "Failed to map regulator to sensor\n";
++		gpio = skl_int3472_gpiod_get_from_temp_lookup(int3472, agpio, func, polarity);
++		if (IS_ERR(gpio)) {
++			ret = PTR_ERR(gpio);
++			err_msg = "Failed to get GPIO\n";
++			break;
++		}
++
++		switch (type) {
++		case INT3472_GPIO_TYPE_CLK_ENABLE:
++			ret = skl_int3472_register_gpio_clock(int3472, gpio);
++			if (ret)
++				err_msg = "Failed to register clock\n";
+ 
++			break;
++		case INT3472_GPIO_TYPE_PRIVACY_LED:
++			ret = skl_int3472_register_pled(int3472, gpio);
++			if (ret)
++				err_msg = "Failed to register LED\n";
++
++			break;
++		case INT3472_GPIO_TYPE_POWER_ENABLE:
++			ret = skl_int3472_register_regulator(int3472, gpio);
++			if (ret)
++				err_msg = "Failed to map regulator to sensor\n";
++
++			break;
++		default: /* Never reached */
++			ret = -EINVAL;
++			break;
++		}
+ 		break;
+ 	default:
+ 		dev_warn(int3472->dev,
+@@ -300,11 +297,7 @@ static int skl_int3472_parse_crs(struct int3472_discrete_device *int3472)
+ 	LIST_HEAD(resource_list);
+ 	int ret;
+ 
+-	/*
+-	 * No error check, because not having a sensor config is not necessarily
+-	 * a failure mode.
+-	 */
+-	int3472->sensor_config = skl_int3472_get_sensor_module_config(int3472);
++	skl_int3472_log_sensor_module_name(int3472);
+ 
+ 	ret = acpi_dev_get_resources(int3472->adev, &resource_list,
+ 				     skl_int3472_handle_gpio_resources,
+@@ -314,20 +307,10 @@ static int skl_int3472_parse_crs(struct int3472_discrete_device *int3472)
+ 
+ 	acpi_dev_free_resource_list(&resource_list);
+ 
+-	/*
+-	 * If we find no clock enable GPIO pin then the privacy LED won't work.
+-	 * We've never seen that situation, but it's possible. Warn the user so
+-	 * it's clear what's happened.
+-	 */
+-	if (int3472->clock.ena_gpio) {
+-		ret = skl_int3472_register_clock(int3472);
+-		if (ret)
+-			return ret;
+-	} else {
+-		if (int3472->clock.led_gpio)
+-			dev_warn(int3472->dev,
+-				 "No clk GPIO. The privacy LED won't work\n");
+-	}
++	/* Register _DSM based clock (no-op if a GPIO clock was already registered) */
++	ret = skl_int3472_register_dsm_clock(int3472);
++	if (ret < 0)
++		return ret;
+ 
+ 	int3472->gpios.dev_id = int3472->sensor_name;
+ 	gpiod_add_lookup_table(&int3472->gpios);
+@@ -335,21 +318,15 @@ static int skl_int3472_parse_crs(struct int3472_discrete_device *int3472)
+ 	return 0;
+ }
+ 
+-static int skl_int3472_discrete_remove(struct platform_device *pdev)
++static void skl_int3472_discrete_remove(struct platform_device *pdev)
+ {
+ 	struct int3472_discrete_device *int3472 = platform_get_drvdata(pdev);
+ 
+ 	gpiod_remove_lookup_table(&int3472->gpios);
+ 
+-	if (int3472->clock.cl)
+-		skl_int3472_unregister_clock(int3472);
+-
+-	gpiod_put(int3472->clock.ena_gpio);
+-	gpiod_put(int3472->clock.led_gpio);
+-
++	skl_int3472_unregister_clock(int3472);
++	skl_int3472_unregister_pled(int3472);
+ 	skl_int3472_unregister_regulator(int3472);
+-
+-	return 0;
+ }
+ 
+ static int skl_int3472_discrete_probe(struct platform_device *pdev)
+@@ -359,9 +336,6 @@ static int skl_int3472_discrete_probe(struct platform_device *pdev)
+ 	struct int3472_cldb cldb;
+ 	int ret;
+ 
+-	if (!adev)
+-		return -ENODEV;
+-
+ 	ret = skl_int3472_fill_cldb(adev, &cldb);
+ 	if (ret) {
+ 		dev_err(&pdev->dev, "Couldn't fill CLDB structure\n");
+@@ -383,6 +357,7 @@ static int skl_int3472_discrete_probe(struct platform_device *pdev)
+ 	int3472->adev = adev;
+ 	int3472->dev = &pdev->dev;
+ 	platform_set_drvdata(pdev, int3472);
++	int3472->clock.imgclk_index = cldb.clock_source;
+ 
+ 	ret = skl_int3472_get_sensor_adev_and_name(&pdev->dev, &int3472->sensor,
+ 						   &int3472->sensor_name);
+@@ -417,7 +392,7 @@ static struct platform_driver int3472_discrete = {
+ 		.acpi_match_table = int3472_device_id,
+ 	},
+ 	.probe = skl_int3472_discrete_probe,
+-	.remove = skl_int3472_discrete_remove,
++	.remove_new = skl_int3472_discrete_remove,
+ };
+ module_platform_driver(int3472_discrete);
+ 
+diff --git a/drivers/platform/x86/intel/int3472/led.c b/drivers/platform/x86/intel/int3472/led.c
+new file mode 100644
+index 000000000..9cbed694e
+--- /dev/null
++++ b/drivers/platform/x86/intel/int3472/led.c
+@@ -0,0 +1,59 @@
++// SPDX-License-Identifier: GPL-2.0
++/* Author: Hans de Goede <hdegoede@redhat.com> */
++
++#include <linux/acpi.h>
++#include <linux/gpio/consumer.h>
++#include <linux/leds.h>
++#include "common.h"
++
++static int int3472_pled_set(struct led_classdev *led_cdev,
++				     enum led_brightness brightness)
++{
++	struct int3472_discrete_device *int3472 =
++		container_of(led_cdev, struct int3472_discrete_device, pled.classdev);
++
++	gpiod_set_value_cansleep(int3472->pled.gpio, brightness);
++	return 0;
++}
++
++int skl_int3472_register_pled(struct int3472_discrete_device *int3472, struct gpio_desc *gpio)
++{
++	char *p;
++	int ret;
++
++	if (int3472->pled.classdev.dev)
++		return -EBUSY;
++
++	int3472->pled.gpio = gpio;
++
++	/* Generate the name, replacing the ':' in the ACPI devname with '_' */
++	snprintf(int3472->pled.name, sizeof(int3472->pled.name),
++		 "%s::privacy_led", acpi_dev_name(int3472->sensor));
++	p = strchr(int3472->pled.name, ':');
++	if (p)
++		*p = '_';
++
++	int3472->pled.classdev.name = int3472->pled.name;
++	int3472->pled.classdev.max_brightness = 1;
++	int3472->pled.classdev.brightness_set_blocking = int3472_pled_set;
++
++	ret = led_classdev_register(int3472->dev, &int3472->pled.classdev);
++	if (ret)
++		return ret;
++
++	int3472->pled.lookup.provider = int3472->pled.name;
++	int3472->pled.lookup.dev_id = int3472->sensor_name;
++	int3472->pled.lookup.con_id = "privacy-led";
++	led_add_lookup(&int3472->pled.lookup);
++
++	return 0;
++}
++
++void skl_int3472_unregister_pled(struct int3472_discrete_device *int3472)
++{
++	if (IS_ERR_OR_NULL(int3472->pled.classdev.dev))
++		return;
++
++	led_remove_lookup(&int3472->pled.lookup);
++	led_classdev_unregister(&int3472->pled.classdev);
++}
+diff --git a/include/linux/leds.h b/include/linux/leds.h
+index 01fccb1c5..29287f6ea 100644
+--- a/include/linux/leds.h
++++ b/include/linux/leds.h
+@@ -39,6 +39,21 @@ enum led_default_state {
+ 	LEDS_DEFSTATE_KEEP	= 2,
+ };
+ 
++/**
++ * struct led_lookup_data - represents a single LED lookup entry
++ *
++ * @list: internal list of all LED lookup entries
++ * @provider: name of led_classdev providing the LED
++ * @dev_id: name of the device associated with this LED
++ * @con_id: name of the LED from the device's point of view
++ */
++struct led_lookup_data {
++	struct list_head list;
++	const char *provider;
++	const char *dev_id;
++	const char *con_id;
++};
++
+ struct led_init_data {
+ 	/* device fwnode handle */
+ 	struct fwnode_handle *fwnode;
+@@ -211,6 +226,9 @@ void devm_led_classdev_unregister(struct device *parent,
+ void led_classdev_suspend(struct led_classdev *led_cdev);
+ void led_classdev_resume(struct led_classdev *led_cdev);
+ 
++void led_add_lookup(struct led_lookup_data *led_lookup);
++void led_remove_lookup(struct led_lookup_data *led_lookup);
++
+ extern struct led_classdev *of_led_get(struct device_node *np, int index);
+ extern void led_put(struct led_classdev *led_cdev);
+ struct led_classdev *__must_check devm_of_led_get(struct device *dev,
+-- 
+2.43.0
+

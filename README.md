@@ -1,4 +1,4 @@
-# How to build a Mainline Linux kernel
+# How to build an Upstream Linux kernel
 
 ## Requirements
 
@@ -24,7 +24,7 @@ sudo apt install -y git gawk flex bison openssl libssl-dev dkms autoconf \
 ## 2. Clone the ipu4-next repo
 
 ```bash
-git clone -b mainline-6.1.158 \
+git clone -b upstream-6.1.158 \
     https://github.com/ruslanbay/ipu4-next
 
 cd ipu4-next
@@ -47,22 +47,7 @@ cd linux
 git am ../patches/*.patch
 ```
 
-## 4. Prepare the kernel source
-
-Turn off the generation of debugging symbols (.debug files). This significantly reduces the size of the compiled kernel image:
-
-```bash
-./scripts/config --disable DEBUG_INFO
-```
-
-Execute this to avoid common build errors related to missing cryptographic keys:
-
-```bash
-./scripts/config --set-str CONFIG_SYSTEM_TRUSTED_KEYS ""
-./scripts/config --set-str CONFIG_SYSTEM_REVOCATION_KEYS ""
-```
-
-## 5. Modify kernel configuration
+## 4. Modify kernel configuration
 
 To enable or disable any features using the kernel configuration, run `make menuconfig` or `make oldconfig`. Or you can use `make localmodconfig` to create a config based on current config and loaded modules (lsmod).
 
@@ -87,7 +72,14 @@ Device Drivers > Staging drivers > Media staging drivers > Enable support to Int
  - < > Omnivision ov5693 sensor support
 ```
 
-## 6. Build the kernel
+Execute this to avoid common build errors related to missing cryptographic keys:
+
+```bash
+./scripts/config --set-str CONFIG_SYSTEM_TRUSTED_KEYS ""
+./scripts/config --set-str CONFIG_SYSTEM_REVOCATION_KEYS ""
+```
+
+## 5. Build the kernel
 
 You are now ready to build the kernel.
 
@@ -100,20 +92,19 @@ make clean && \
 
 If the build is successful, several .deb binary package files will be produced in the directory one level above the kernel source working directory.
 
-## 7. Install the new kernel
+## 6. Install the new kernel
 
 Install all the debian packages generated from the previous step (on your build system or a different target system with the same architecture) with dpkg -i and reboot:
 
 ```bash
 cd ..
 
-sudo dpkg -i linux-headers-6.1.158-ipu4p_6.1.158-ipu4p-2_amd64.deb \
-    linux-image-6.1.158-ipu4p_6.1.158-ipu4p-2_amd64.deb
+sudo dpkg -i linux-headers-*.deb linux-image-*.deb
 
 sudo reboot
 ```
 
-## 8. Test the new kernel
+## 7. Test the new kernel
 
 Run any necessary testing to confirm that your changes and customizations have taken effect. You should also confirm that the newly installed kernel version matches the value in the <kernel_source_working_directory>/debian.master/changelog file by running:
 
@@ -121,15 +112,15 @@ Run any necessary testing to confirm that your changes and customizations have t
 uname -r
 ```
 
-## 9. Build and install the `libcamerahal` package
+## 8. Build and install the `libcamerahal` package
 
 Follow the instructions provided in the [libcamerahal README](libcamerahal/README.md).
 
-## 10. Build and install the `icamerasrc` package
+## 9. Build and install the `icamerasrc` package
 
 Follow the instructions provided in the [icamerasrc README](icamerasrc/README.md).
 
-## 11. Known issues and workarounds
+## 10. Known issues and workarounds
 
 ### Moduledata and library version mismatch
 
@@ -148,7 +139,7 @@ echo "options intel_ipu4p fw_version_check=0" | sudo tee /etc/modprobe.d/ipu4.co
 sudo systemctl reboot
 ```
 
-## 12. Verification
+## 11. Verification
 
 ![image](assets/media0-graph.png)
 
@@ -1334,21 +1325,24 @@ The Intel Image Processing Units (IPU4 and IPU4P) differ primarily by their asso
 - IPU4P (PCI 8086:8a19): For every other IPU4 devices with PCI Device ID 8a19
 
 
-## Surface Pro 7
+## Microsoft Surface Devices
 
-|||
-|-|-|
-|Image Signal Processor|IPU4P|
-|PCI Device ID|8086:8a19|
-|Front Sensor|OV5693|
-|Front Sensor ACPI ID|INT33BE|
-|Front Module|MSHW0190|
-|Rear Sensor|OV8865|
-|Rear Sensor ACPI ID|INT347A|
-|Rear Module|MSHW0191|
-|IR Sensor|OV7251|
-|IR Sensor ACPI ID|INT347E|
-|IR Module|MSHW0192|
+||Pro 7|Book 3 13"|Book 3 15"|Laptop 3|
+|-|-|-|-|-|
+|Image Signal Processor|IPU4P||||
+|PCI Device ID|8086:8a19||||
+|&nbsp;|
+|Front Sensor|OV5693|OV5693|OV5693|OV9734|
+|Front Sensor ACPI ID|INT33BE|INT33BE|INT33BE|OVTI9734|
+|Front Module|MSHW0190|MSHW0210|MSHW0200||
+|&nbsp;|
+|Rear Sensor|OV8865|OV8865|OV8865||
+|Rear Sensor ACPI ID|INT347A|INT347A|INT347A||
+|Rear Module|MSHW0191|MSHW0211|MSHW0201||
+|&nbsp;|
+|IR Sensor|OV7251|OV7251|OV7251|OV7251|
+|IR Sensor ACPI ID|INT347E|INT347E|INT347E|INT347E|
+|IR Module|MSHW0192|MSHW0212|MSHW0202||
 
 ```bash
 lspci -vvv -k
@@ -1370,49 +1364,6 @@ lspci -vvv -k -n
 	Subsystem: 8086:7270
 ```
 
-## Surface Book 3 13"
-
-|||
-|-|-|
-|Image Signal Processor||
-|PCI Device ID||
-|Front Sensor|OV5693|
-|Front Sensor ACPI ID|INT33BE|
-|Front Module|MSHW0210|
-|Rear Sensor|OV8865|
-|Rear Sensor ACPI ID|INT347A|
-|Rear Module|MSHW0211|
-|IR Sensor|OV7251|
-|IR Sensor ACPI ID|INT347E|
-|IR Module|MSHW0212|
-
-## Surface Book 3 15"
-
-|||
-|-|-|
-|Image Signal Processor||
-|PCI Device ID||
-|Front Sensor|OV5693|
-|Front Sensor ACPI ID|INT33BE|
-|Front Module|MSHW0200|
-|Rear Sensor|OV8865|
-|Rear Sensor ACPI ID|INT347A|
-|Rear Module|MSHW0201|
-|IR Sensor|OV7251|
-|IR Sensor ACPI ID|INT347E|
-|IR Module|MSHW0202|
-
-## Surface Laptop 3 (Intel)
-
-|||
-|-|-|
-|Image Signal Processor||
-|PCI Device ID||
-|Front Sensor|OV9734|
-|Front Sensor ACPI ID|OVTI9734|
-|IR Sensor|OV7251|
-|IR Sensor ACPI ID|INT347E|
-
 ## Dell XPS 13 7390 2-in-1
 
 |||
@@ -1430,3 +1381,6 @@ lspci -vvv -k -n
 4. https://github.com/intel/ipu4-icamerasrc
 5. https://github.com/linux-surface/linux-surface/wiki/Camera-Support
 6. https://wiki.ubuntu.com/Dell/XPS/XPS-13-7390-2-in-1#Camera
+7. https://github.com/endeavour/DellXps7390-2in1-Manjaro-Linux-Fixes/issues/6
+8. https://github.com/linux-surface/linux-surface/issues/91
+9. https://github.com/linux-surface/linux-surface/discussions/1353

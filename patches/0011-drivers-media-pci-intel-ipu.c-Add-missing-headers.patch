@@ -1,0 +1,24 @@
+From e312bde56ba458b41fc13ce46fd75e63678ed3aa Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 15:27:36 +0100
+Subject: [PATCH 11/21] drivers/media/pci/intel/ipu.c: Add missing headers
+
+---
+ drivers/media/pci/intel/ipu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/media/pci/intel/ipu.c b/drivers/media/pci/intel/ipu.c
+index b74e21523488..40fd8125213f 100644
+--- a/drivers/media/pci/intel/ipu.c
++++ b/drivers/media/pci/intel/ipu.c
+@@ -12,6 +12,7 @@
+ #include <linux/pm_runtime.h>
+ #include <linux/timer.h>
+ #include <linux/sched.h>
++#include <linux/vmalloc.h>
+ 
+ #include "ipu.h"
+ #include "ipu-buttress.h"
+-- 
+2.43.0
+

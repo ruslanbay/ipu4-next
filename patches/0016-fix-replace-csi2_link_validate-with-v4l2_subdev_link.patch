@@ -1,0 +1,99 @@
+From 5e62827c0500a2b7e603e46578b9f1e5332e3c55 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 19:05:53 +0100
+Subject: [PATCH 16/21] fix: replace csi2_link_validate with
+ v4l2_subdev_link_validate
+
+---
+ drivers/media/pci/intel/ipu-isys-csi2.c | 68 +------------------------
+ 1 file changed, 1 insertion(+), 67 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2.c b/drivers/media/pci/intel/ipu-isys-csi2.c
+index 51fc95d49275..576abe030eba 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2.c
+@@ -371,72 +371,6 @@ static void csi2_capture_done(struct ipu_isys_pipeline *ip,
+ 	}
+ }
+ 
+-static int csi2_link_validate(struct media_link *link)
+-{
+-	struct media_pipeline *media_pipe;
+-	struct ipu_isys_csi2 *csi2;
+-	struct ipu_isys_pipeline *ip;
+-	struct v4l2_subdev_route r[IPU_ISYS_MAX_STREAMS];
+-	struct v4l2_subdev_routing routing = {
+-		.routes = r,
+-		.num_routes = IPU_ISYS_MAX_STREAMS,
+-	};
+-	unsigned int active = 0;
+-	int i;
+-	int rval;
+-
+-	media_pipe = media_entity_pipeline(link->sink->entity);
+-	if (!media_pipe)
+-		return -EINVAL;
+-	csi2 =
+-	    to_ipu_isys_csi2(media_entity_to_v4l2_subdev(link->sink->entity));
+-	ip = to_ipu_isys_pipeline(media_pipe);
+-	csi2->receiver_errors = 0;
+-	ip->csi2 = csi2;
+-	ipu_isys_video_add_capture_done(ip, csi2_capture_done);
+-
+-	rval = v4l2_subdev_link_validate(link);
+-	if (rval)
+-		return rval;
+-
+-	if (!v4l2_ctrl_g_ctrl(csi2->store_csi2_header)) {
+-		for (i = 0; i < NR_OF_CSI2_SOURCE_PADS; i++) {
+-			struct media_pad *remote_pad =
+-			    media_pad_remote_pad_first(&csi2->asd.
+-						    pad[CSI2_PAD_SOURCE(i)]);
+-
+-			if (remote_pad &&
+-			    is_media_entity_v4l2_subdev(remote_pad->entity)) {
+-				dev_err(&csi2->isys->adev->dev,
+-					"CSI2 BE requires CSI2 headers.\n");
+-				return -EINVAL;
+-			}
+-		}
+-	}
+-
+-	rval =
+-	    v4l2_subdev_call(media_entity_to_v4l2_subdev(link->source->entity),
+-			     pad, get_routing, &routing);
+-
+-	if (rval) {
+-		csi2->remote_streams = 1;
+-		return 0;
+-	}
+-
+-	for (i = 0; i < routing.num_routes; i++) {
+-		if (routing.routes[i].flags & V4L2_SUBDEV_ROUTE_FL_ACTIVE)
+-			active++;
+-	}
+-
+-	if (active !=
+-	    bitmap_weight(csi2->asd.stream[link->sink->index].streams_stat, 32))
+-		return -EINVAL;
+-
+-	csi2->remote_streams = active;
+-
+-	return 0;
+-}
+-
+ static const struct v4l2_subdev_video_ops csi2_sd_video_ops = {
+ 	.s_stream = set_stream,
+ };
+@@ -517,7 +451,7 @@ static struct v4l2_subdev_ops csi2_sd_ops = {
+ };
+ 
+ static struct media_entity_operations csi2_entity_ops = {
+-	.link_validate = csi2_link_validate,
++	.link_validate = v4l2_subdev_link_validate,
+ };
+ 
+ static void csi2_set_ffmt(struct v4l2_subdev *sd,
+-- 
+2.43.0
+

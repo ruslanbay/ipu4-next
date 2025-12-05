@@ -1,0 +1,285 @@
+From 9b17ba961d7e7a03855f504cb62ad048b7ef89fa Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 20:22:51 +0100
+Subject: [PATCH 17/21] fix: PLEASE REVIEW ME
+
+---
+ .../media/pci/intel/ipu-isys-csi2-be-soc.c    |   1 -
+ drivers/media/pci/intel/ipu-isys-csi2.c       |  22 ---
+ drivers/media/pci/intel/ipu-isys-queue.c      |  11 +-
+ drivers/media/pci/intel/ipu-isys-subdev.c     | 127 +++---------------
+ drivers/media/pci/intel/ipu-isys-subdev.h     |   6 +-
+ drivers/media/pci/intel/ipu-isys-video.c      |  12 +-
+ 6 files changed, 27 insertions(+), 152 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c b/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
+index 2d6a1bc30bb0..eea87af199e2 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2-be-soc.c
+@@ -137,7 +137,6 @@ static const struct v4l2_subdev_pad_ops csi2_be_soc_sd_pad_ops = {
+ 	.set_selection = ipu_isys_csi2_be_soc_set_sel,
+ 	.enum_mbus_code = ipu_isys_subdev_enum_mbus_code,
+ 	.set_routing = ipu_isys_subdev_set_routing,
+-	.get_routing = ipu_isys_subdev_get_routing,
+ };
+ 
+ static struct v4l2_subdev_ops csi2_be_soc_sd_ops = {
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2.c b/drivers/media/pci/intel/ipu-isys-csi2.c
+index 576abe030eba..4cdb7a1cf3f5 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2.c
+@@ -350,27 +350,6 @@ static int set_stream(struct v4l2_subdev *sd, int enable)
+ 	return 0;
+ }
+ 
+-static void csi2_capture_done(struct ipu_isys_pipeline *ip,
+-			      struct ipu_fw_isys_resp_info_abi *info)
+-{
+-	if (ip->interlaced && ip->isys->short_packet_source ==
+-	    IPU_ISYS_SHORT_PACKET_FROM_RECEIVER) {
+-		struct ipu_isys_buffer *ib;
+-		unsigned long flags;
+-
+-		spin_lock_irqsave(&ip->short_packet_queue_lock, flags);
+-		if (!list_empty(&ip->short_packet_active)) {
+-			ib = list_last_entry(&ip->short_packet_active,
+-					     struct ipu_isys_buffer, head);
+-			list_move(&ib->head, &ip->short_packet_incoming);
+-		}
+-		spin_unlock_irqrestore(&ip->short_packet_queue_lock, flags);
+-	}
+-	if (ip->csi2) {
+-		ipu_isys_csi2_error(ip->csi2);
+-	}
+-}
+-
+ static const struct v4l2_subdev_video_ops csi2_sd_video_ops = {
+ 	.s_stream = set_stream,
+ };
+@@ -441,7 +420,6 @@ static const struct v4l2_subdev_pad_ops csi2_sd_pad_ops = {
+ 	.set_fmt = ipu_isys_csi2_set_fmt,
+ 	.enum_mbus_code = ipu_isys_subdev_enum_mbus_code,
+ 	.set_routing = ipu_isys_subdev_set_routing,
+-	.get_routing = ipu_isys_subdev_get_routing,
+ };
+ 
+ static struct v4l2_subdev_ops csi2_sd_ops = {
+diff --git a/drivers/media/pci/intel/ipu-isys-queue.c b/drivers/media/pci/intel/ipu-isys-queue.c
+index 26067ba0541a..81056ac9d08b 100644
+--- a/drivers/media/pci/intel/ipu-isys-queue.c
++++ b/drivers/media/pci/intel/ipu-isys-queue.c
+@@ -1133,15 +1133,6 @@ void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
+ 
+ 		buf->field = V4L2_FIELD_NONE;
+ 
+-		/*
+-		 * Use "reserved" field to pass csi2 index and vc.
+-		 * May need to change to other approach.
+-		 */
+-		buf->reserved &= 0xFFFFFF00;
+-		if (ip->csi2)
+-			buf->reserved |= ip->csi2->index << 4;
+-		buf->reserved |= ip->vc;
+-
+ 		list_del(&ib->head);
+ 		spin_unlock_irqrestore(&aq->lock, flags);
+ 
+@@ -1158,7 +1149,7 @@ void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
+ 			spin_unlock_irqrestore(&ip->short_packet_queue_lock,
+ 					       flags);
+ 		} else {
+-			ipu_isys_queue_buf_done(ib);
++		ipu_isys_queue_buf_done(ib);
+ 		}
+ 
+ 		return;
+diff --git a/drivers/media/pci/intel/ipu-isys-subdev.c b/drivers/media/pci/intel/ipu-isys-subdev.c
+index 8cf17820f7d0..5e260111f9f4 100644
+--- a/drivers/media/pci/intel/ipu-isys-subdev.c
++++ b/drivers/media/pci/intel/ipu-isys-subdev.c
+@@ -494,115 +494,32 @@ int ipu_isys_subdev_get_frame_desc(struct v4l2_subdev *sd,
+ 	return rval;
+ }
+ 
+-int ipu_isys_subdev_set_routing(struct v4l2_subdev *sd,
+-				struct v4l2_subdev_routing *route)
++static int subdev_set_routing(struct v4l2_subdev *sd,
++			      struct v4l2_subdev_state *state,
++			      struct v4l2_subdev_krouting *routing)
+ {
+-	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+-	int i, j, ret = 0;
+-
+-	WARN_ON(!mutex_is_locked(&sd->entity.
+-				 graph_obj.mdev
+-				 ->graph_mutex));
+-
+-	for (i = 0; i < min(route->num_routes, asd->nstreams); ++i) {
+-		struct v4l2_subdev_route *t = &route->routes[i];
+-
+-		if (t->sink_stream > asd->nstreams - 1 ||
+-		    t->source_stream > asd->nstreams - 1)
+-			continue;
+-
+-		for (j = 0; j < asd->nstreams; j++) {
+-			if (t->sink_pad == asd->route[j].sink &&
+-			    t->source_pad == asd->route[j].source)
+-				break;
+-		}
+-
+-		if (j == asd->nstreams)
+-			continue;
+-
+-		if (asd->route[j].flags & V4L2_SUBDEV_ROUTE_FL_IMMUTABLE)
+-			continue;
+-
+-		if ((t->flags & V4L2_SUBDEV_ROUTE_FL_SOURCE) && asd->nsinks)
+-			continue;
+-
+-		if (!(t->flags & V4L2_SUBDEV_ROUTE_FL_SOURCE)) {
+-			int source_pad = 0;
+-
+-			if (sd->entity.pads[t->sink_pad].flags &
+-			    MEDIA_PAD_FL_MULTIPLEX)
+-				source_pad = t->source_pad - asd->nsinks;
+-
+-			asd->stream[t->sink_pad].stream_id[source_pad] =
+-			    t->sink_stream;
+-		}
+-
+-		if (sd->entity.pads[t->source_pad].flags &
+-		    MEDIA_PAD_FL_MULTIPLEX)
+-			asd->stream[t->source_pad].stream_id[t->sink_pad] =
+-			    t->source_stream;
+-		else
+-			asd->stream[t->source_pad].stream_id[0] =
+-			    t->source_stream;
+-
+-		if (t->flags & V4L2_SUBDEV_ROUTE_FL_ACTIVE) {
+-			bitmap_set(asd->stream[t->source_pad].streams_stat,
+-				   t->source_stream, 1);
+-			if (!(t->flags & V4L2_SUBDEV_ROUTE_FL_SOURCE))
+-				bitmap_set(asd->stream[t->sink_pad]
+-					   .streams_stat, t->sink_stream, 1);
+-			asd->route[j].flags |= V4L2_SUBDEV_ROUTE_FL_ACTIVE;
+-		} else if (!(t->flags & V4L2_SUBDEV_ROUTE_FL_ACTIVE)) {
+-			bitmap_clear(asd->stream[t->source_pad].streams_stat,
+-				     t->source_stream, 1);
+-			if (!(t->flags & V4L2_SUBDEV_ROUTE_FL_SOURCE))
+-				bitmap_clear(asd->stream[t->sink_pad]
+-					     .streams_stat, t->sink_stream, 1);
+-			asd->route[j].flags &= (~V4L2_SUBDEV_ROUTE_FL_ACTIVE);
+-		}
+-	}
+-
+-	return ret;
++	static const struct v4l2_mbus_framefmt format = {
++		.width = 4096,
++		.height = 3072,
++		.code = MEDIA_BUS_FMT_SGRBG10_1X10,
++		.field = V4L2_FIELD_NONE,
++	};
++	int ret;
++
++	ret = v4l2_subdev_routing_validate(sd, routing,
++					   V4L2_SUBDEV_ROUTING_ONLY_1_TO_1);
++	if (ret)
++		return ret;
++
++	return v4l2_subdev_set_routing_with_fmt(sd, state, routing, &format);
+ }
+ 
+-int ipu_isys_subdev_get_routing(struct v4l2_subdev *sd,
+-				struct v4l2_subdev_routing *route)
++int ipu_isys_subdev_set_routing(struct v4l2_subdev *sd,
++				 struct v4l2_subdev_state *state,
++				 enum v4l2_subdev_format_whence which,
++				 struct v4l2_subdev_krouting *routing)
+ {
+-	struct ipu_isys_subdev *asd = to_ipu_isys_subdev(sd);
+-	int i, j;
+-
+-	for (i = 0, j = 0; i < min(asd->nstreams, route->num_routes); ++i) {
+-		route->routes[j].sink_pad = asd->route[i].sink;
+-		if (sd->entity.pads[asd->route[i].sink].flags &
+-		    MEDIA_PAD_FL_MULTIPLEX) {
+-			int source_pad = asd->route[i].source - asd->nsinks;
+-
+-			route->routes[j].sink_stream =
+-			    asd->stream[asd->route[i].sink].
+-			    stream_id[source_pad];
+-		} else {
+-			route->routes[j].sink_stream =
+-			    asd->stream[asd->route[i].sink].stream_id[0];
+-		}
+-
+-		route->routes[j].source_pad = asd->route[i].source;
+-		if (sd->entity.pads[asd->route[i].source].flags &
+-		    MEDIA_PAD_FL_MULTIPLEX) {
+-			route->routes[j].source_stream =
+-			    asd->stream[asd->route[i].source].stream_id[asd->
+-									route
+-									[i].
+-									sink];
+-		} else {
+-			route->routes[j].source_stream =
+-			    asd->stream[asd->route[i].source].stream_id[0];
+-		}
+-		route->routes[j++].flags = asd->route[i].flags;
+-	}
+-
+-	route->num_routes = j;
+-
+-	return 0;
++	return subdev_set_routing(sd, state, routing);
+ }
+ 
+ int ipu_isys_subdev_set_sel(struct v4l2_subdev *sd,
+diff --git a/drivers/media/pci/intel/ipu-isys-subdev.h b/drivers/media/pci/intel/ipu-isys-subdev.h
+index a1274bd13348..f9bd00d944ed 100644
+--- a/drivers/media/pci/intel/ipu-isys-subdev.h
++++ b/drivers/media/pci/intel/ipu-isys-subdev.h
+@@ -165,7 +165,7 @@ void ipu_isys_subdev_cleanup(struct ipu_isys_subdev *asd);
+ int ipu_isys_subdev_get_frame_desc(struct v4l2_subdev *sd,
+ 				   struct v4l2_mbus_frame_desc *desc);
+ int ipu_isys_subdev_set_routing(struct v4l2_subdev *sd,
+-				struct v4l2_subdev_routing *route);
+-int ipu_isys_subdev_get_routing(struct v4l2_subdev *sd,
+-				struct v4l2_subdev_routing *route);
++				 struct v4l2_subdev_state *state,
++				 enum v4l2_subdev_format_whence which,
++				 struct v4l2_subdev_krouting *routing);
+ #endif /* IPU_ISYS_SUBDEV_H */
+diff --git a/drivers/media/pci/intel/ipu-isys-video.c b/drivers/media/pci/intel/ipu-isys-video.c
+index 22256f61920d..905c627fe6b3 100644
+--- a/drivers/media/pci/intel/ipu-isys-video.c
++++ b/drivers/media/pci/intel/ipu-isys-video.c
+@@ -669,7 +669,7 @@ static int link_validate(struct media_link *link)
+ 		.routes = r,
+ 		.num_routes = IPU_ISYS_MAX_STREAMS,
+ 	};
+-	int i, rval, active = 0;
++	int rval = 0;
+ 	struct v4l2_subdev *sd;
+ 
+ 	if (!link->source->entity)
+@@ -684,16 +684,6 @@ static int link_validate(struct media_link *link)
+ 	if (rval)
+ 		goto err_subdev;
+ 
+-	for (i = 0; i < routing.num_routes; i++) {
+-		if (!(routing.routes[i].flags & V4L2_SUBDEV_ROUTE_FL_ACTIVE))
+-			continue;
+-
+-		if (routing.routes[i].source_pad == link->source->index)
+-			ip->stream_id = routing.routes[i].sink_stream;
+-
+-		active++;
+-	}
+-
+ 	if (ip->external) {
+ 		struct v4l2_mbus_frame_desc desc = {
+ 			.num_entries = V4L2_FRAME_DESC_ENTRY_MAX,
+-- 
+2.43.0
+

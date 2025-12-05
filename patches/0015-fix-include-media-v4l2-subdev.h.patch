@@ -1,0 +1,73 @@
+From 0deb83e1a95ee27d2af25c4e932a4fcd070fe064 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 16:56:05 +0100
+Subject: [PATCH 15/21] fix include/media/v4l2-subdev.h
+
+---
+ include/media/v4l2-subdev.h | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/include/media/v4l2-subdev.h b/include/media/v4l2-subdev.h
+index 7c96dca3daf6..3089f22df628 100644
+--- a/include/media/v4l2-subdev.h
++++ b/include/media/v4l2-subdev.h
+@@ -946,8 +946,6 @@ struct v4l2_subdev_pad_ops {
+ 			      struct v4l2_mbus_frame_desc *fd);
+ 	int (*get_routing)(struct v4l2_subdev *sd,
+ 			   struct v4l2_subdev_routing *route);
+-	int (*set_routing)(struct v4l2_subdev *sd,
+-			   struct v4l2_subdev_routing *route);
+ 	int (*get_mbus_config)(struct v4l2_subdev *sd, unsigned int pad,
+ 			       struct v4l2_mbus_config *config);
+ 	int (*set_mbus_config)(struct v4l2_subdev *sd, unsigned int pad,
+@@ -1227,7 +1225,7 @@ struct v4l2_subdev_fh {
+ 
+ /**
+  * v4l2_subdev_get_pad_format - ancillary routine to call
+- *	&struct v4l2_subdev_pad_config->try_fmt
++ *	&struct v4l2_subdev_pad_config->format
+  *
+  * @sd: pointer to &struct v4l2_subdev
+  * @state: pointer to &struct v4l2_subdev_state
+@@ -1242,12 +1240,12 @@ v4l2_subdev_get_pad_format(struct v4l2_subdev *sd,
+ 		return NULL;
+ 	if (WARN_ON(pad >= sd->entity.num_pads))
+ 		pad = 0;
+-	return &state->pads[pad].try_fmt;
++	return &state->pads[pad].format;
+ }
+ 
+ /**
+  * v4l2_subdev_get_pad_crop - ancillary routine to call
+- *	&struct v4l2_subdev_pad_config->try_crop
++ *	&struct v4l2_subdev_pad_config->crop
+  *
+  * @sd: pointer to &struct v4l2_subdev
+  * @state: pointer to &struct v4l2_subdev_state.
+@@ -1262,12 +1260,12 @@ v4l2_subdev_get_pad_crop(struct v4l2_subdev *sd,
+ 		return NULL;
+ 	if (WARN_ON(pad >= sd->entity.num_pads))
+ 		pad = 0;
+-	return &state->pads[pad].try_crop;
++	return &state->pads[pad].crop;
+ }
+ 
+ /**
+  * v4l2_subdev_get_pad_compose - ancillary routine to call
+- *	&struct v4l2_subdev_pad_config->try_compose
++ *	&struct v4l2_subdev_pad_config->compose
+  *
+  * @sd: pointer to &struct v4l2_subdev
+  * @state: pointer to &struct v4l2_subdev_state.
+@@ -1282,7 +1280,7 @@ v4l2_subdev_get_pad_compose(struct v4l2_subdev *sd,
+ 		return NULL;
+ 	if (WARN_ON(pad >= sd->entity.num_pads))
+ 		pad = 0;
+-	return &state->pads[pad].try_compose;
++	return &state->pads[pad].compose;
+ }
+ 
+ /*
+-- 
+2.43.0
+

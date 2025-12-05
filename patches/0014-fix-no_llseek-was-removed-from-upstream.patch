@@ -1,0 +1,34 @@
+From 674bf9223e85f94b0dba54e750924d68e65a7b09 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 16:26:26 +0100
+Subject: [PATCH 14/21] fix: no_llseek was removed from upstream
+
+---
+ drivers/media/pci/intel/ipu-trace.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu-trace.c b/drivers/media/pci/intel/ipu-trace.c
+index 824515a66ac1..9d0aaac7783d 100644
+--- a/drivers/media/pci/intel/ipu-trace.c
++++ b/drivers/media/pci/intel/ipu-trace.c
+@@ -727,7 +727,7 @@ static const struct file_operations ipu_traceconf_fops = {
+ 	.release = traceconf_release,
+ 	.read = traceconf_read,
+ 	.write = traceconf_write,
+-	.llseek = no_llseek,
++	.llseek = noop_llseek,
+ };
+ 
+ static int gettrace_open(struct inode *inode, struct file *file)
+@@ -794,7 +794,7 @@ static const struct file_operations ipu_gettrace_fops = {
+ 	.release = gettrace_release,
+ 	.read = gettrace_read,
+ 	.write = gettrace_write,
+-	.llseek = no_llseek,
++	.llseek = noop_llseek,
+ };
+ 
+ int ipu_trace_init(struct ipu_device *isp, void __iomem *base,
+-- 
+2.43.0
+

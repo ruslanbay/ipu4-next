@@ -1,0 +1,396 @@
+From 14473a05f56ef77ff3c34f42cfb132ecf3bd3856 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 14:11:18 +0100
+Subject: [PATCH 06/21] include/uapi/linux: add IPU4 related headers
+
+---
+ include/uapi/linux/ipu-isys-isa-fw.h | 118 +++++++++++++++++++++++++++
+ include/uapi/linux/ipu-isys.h        |  31 +++++++
+ include/uapi/linux/ipu-psys.h        | 112 +++++++++++++++++++++++++
+ include/uapi/linux/media.h           |   1 +
+ include/uapi/linux/v4l2-controls.h   |   5 ++
+ include/uapi/linux/v4l2-subdev.h     |   8 ++
+ include/uapi/linux/videodev2.h       |  25 ++++++
+ 7 files changed, 300 insertions(+)
+ create mode 100644 include/uapi/linux/ipu-isys-isa-fw.h
+ create mode 100644 include/uapi/linux/ipu-isys.h
+ create mode 100644 include/uapi/linux/ipu-psys.h
+
+diff --git a/include/uapi/linux/ipu-isys-isa-fw.h b/include/uapi/linux/ipu-isys-isa-fw.h
+new file mode 100644
+index 000000000000..927ffa68dcff
+--- /dev/null
++++ b/include/uapi/linux/ipu-isys-isa-fw.h
+@@ -0,0 +1,118 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++/* Copyright (C) 2014 - 2018 Intel Corporation */
++
++#ifndef IPU_ISYS_ISA_FW_H
++#define IPU_ISYS_ISA_FW_H
++
++#ifdef __KERNEL__
++#include <linux/types.h>
++#else
++#include <stdint.h>
++#endif
++
++#define ia_css_terminal_offsets(pg)			\
++	((uint16_t *)((void *)(pg) +			\
++		      (pg)->terminals_offset_offset))
++
++#define to_ia_css_terminal(pg, i)				\
++	((struct ia_css_terminal *)(				\
++		 (void *)(pg) + ia_css_terminal_offsets(pg)[i]))
++
++#define ia_css_terminal_offset(pg, i)					\
++	(!(i) ? sizeof *(pg) + ((((pg)->terminal_count - 1) | 3) + 1)	\
++	 * sizeof(uint16_t) :						\
++	 ia_css_terminal_offsets(pg)[(i) - 1]				\
++	 + to_ia_css_terminal(pg, (i) - 1)->size)
++
++/* BEGIN DEFINITIONS IMPORTED FROM FIRMWARE */
++
++#define N_IPU_FW_ISYS_KERNEL_ID 20
++
++struct ia_css_process_group_light {
++	uint32_t size;
++	uint16_t terminals_offset_offset;
++	uint16_t terminal_count;
++};
++
++enum ia_css_terminal_type {
++	IPU_FW_TERMINAL_TYPE_DATA_IN = 0,
++	IPU_FW_TERMINAL_TYPE_DATA_OUT,
++	IPU_FW_TERMINAL_TYPE_PARAM_STREAM,
++	IPU_FW_TERMINAL_TYPE_PARAM_CACHED_IN,
++	IPU_FW_TERMINAL_TYPE_PARAM_CACHED_OUT,
++	IPU_FW_TERMINAL_TYPE_PARAM_SPATIAL_IN,
++	IPU_FW_TERMINAL_TYPE_PARAM_SPATIAL_OUT,
++	IPU_FW_TERMINAL_TYPE_PARAM_SLICED_IN,
++	IPU_FW_TERMINAL_TYPE_PARAM_SLICED_OUT,
++	IPU_FW_TERMINAL_TYPE_STATE_IN,
++	IPU_FW_TERMINAL_TYPE_STATE_OUT,
++	IPU_FW_TERMINAL_TYPE_PROGRAM,
++	IPU_FW_N_TERMINAL_TYPES
++};
++
++struct ia_css_terminal {
++	enum ia_css_terminal_type terminal_type;
++	int16_t parent_offset;
++	uint16_t size;
++	uint16_t tm_index;
++	uint8_t id;
++	uint8_t padding[5];
++};
++
++struct ia_css_param_payload {
++	uint64_t host_buffer;
++	uint32_t buffer;
++	uint8_t padding[4];
++};
++
++struct ia_css_param_section_desc {
++	uint32_t mem_offset;
++	uint32_t mem_size;
++};
++
++struct ia_css_param_terminal {
++	struct ia_css_terminal base;
++	struct ia_css_param_payload param_payload;
++	uint16_t param_section_desc_offset;
++	uint8_t padding[6];
++};
++
++struct ia_css_program_terminal {
++	struct ia_css_terminal base;
++	struct ia_css_param_payload param_payload;
++	uint16_t fragment_param_section_desc_offset;
++	uint16_t kernel_fragment_sequencer_info_desc_offset;
++	uint8_t padding[4];
++};
++
++struct ia_css_sliced_param_terminal {
++	struct ia_css_terminal base;
++	struct ia_css_param_payload param_payload;
++	uint32_t kernel_id;
++	uint16_t fragment_slice_desc_offset;
++	uint8_t padding[2];
++};
++
++enum ia_css_dimension {
++	IPU_FW_COL_DIMENSION = 0,
++	IPU_FW_ROW_DIMENSION = 1,
++	IPU_FW_N_DATA_DIMENSION = 2
++};
++
++struct ia_css_frame_grid_desc {
++	uint16_t frame_grid_dimension[IPU_FW_N_DATA_DIMENSION];
++	uint8_t padding[4];
++};
++
++struct ia_css_spatial_param_terminal {
++	struct ia_css_terminal base;
++	struct ia_css_param_payload param_payload;
++	struct ia_css_frame_grid_desc frame_grid_desc;
++	uint32_t kernel_id;
++	uint16_t frame_grid_param_section_desc_offset;
++	uint16_t fragment_grid_desc_offset;
++};
++
++/* END DEFINITIONS IMPORTED FROM FIRMWARE */
++
++#endif /* IPU_ISYS_ISA_FW_H */
+diff --git a/include/uapi/linux/ipu-isys.h b/include/uapi/linux/ipu-isys.h
+new file mode 100644
+index 000000000000..f580aee1cd2f
+--- /dev/null
++++ b/include/uapi/linux/ipu-isys.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: GPL-2.0  WITH Linux-syscall-note */
++/* Copyright (C) 2016 - 2018 Intel Corporation */
++
++#ifndef UAPI_LINUX_IPU_ISYS_H
++#define UAPI_LINUX_IPU_ISYS_H
++
++#define V4L2_CID_IPU_BASE	(V4L2_CID_USER_BASE + 0x1080)
++
++#define V4L2_CID_IPU_ISA_EN	(V4L2_CID_IPU_BASE + 1)
++#define V4L2_CID_IPU_STORE_CSI2_HEADER	(V4L2_CID_IPU_BASE + 2)
++#define V4L2_CID_IPU_ISYS_COMPRESSION	(V4L2_CID_IPU_BASE + 3)
++#define V4L2_CID_IPU_QUERY_SUB_STREAM	(V4L2_CID_IPU_BASE + 4)
++#define V4L2_CID_IPU_SET_SUB_STREAM	(V4L2_CID_IPU_BASE + 5)
++
++#define V4L2_IPU_ISA_EN_BLC	(1 << 0)
++#define V4L2_IPU_ISA_EN_LSC	(1 << 1)
++#define V4L2_IPU_ISA_EN_DPC	(1 << 2)
++#define V4L2_IPU_ISA_EN_SCALER	(1 << 3)
++#define V4L2_IPU_ISA_EN_AWB	(1 << 4)
++#define V4L2_IPU_ISA_EN_AF	(1 << 5)
++#define V4L2_IPU_ISA_EN_AE	(1 << 6)
++#define NR_OF_IPU_ISA_CFG	7
++
++#define V4L2_FMT_IPU_ISA_CFG	v4l2_fourcc('i', 'p', '4', 'c')
++#define V4L2_FMT_IPU_ISYS_META	v4l2_fourcc('i', 'p', '4', 'm')
++
++
++#define VIDIOC_IPU_GET_DRIVER_VERSION \
++	_IOWR('v', BASE_VIDIOC_PRIVATE + 3, uint32_t)
++
++#endif /* UAPI_LINUX_IPU_ISYS_H */
+diff --git a/include/uapi/linux/ipu-psys.h b/include/uapi/linux/ipu-psys.h
+new file mode 100644
+index 000000000000..7fe795443d4b
+--- /dev/null
++++ b/include/uapi/linux/ipu-psys.h
+@@ -0,0 +1,112 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++/* Copyright (C) 2013 - 2018 Intel Corporation */
++
++#ifndef _UAPI_IPU_PSYS_H
++#define _UAPI_IPU_PSYS_H
++
++#ifdef __KERNEL__
++#include <linux/types.h>
++#else
++#include <stdint.h>
++#endif
++
++struct ipu_psys_capability {
++	uint32_t version;
++	uint8_t driver[20];
++	uint32_t pg_count;
++	uint8_t dev_model[32];
++	uint32_t reserved[17];
++} __attribute__ ((packed));
++
++struct ipu_psys_event {
++	uint32_t type;		/* IPU_PSYS_EVENT_TYPE_ */
++	uint64_t user_token;
++	uint64_t issue_id;
++	uint32_t buffer_idx;
++	uint32_t error;
++	int32_t reserved[2];
++} __attribute__ ((packed));
++
++#define IPU_PSYS_EVENT_TYPE_CMD_COMPLETE	1
++#define IPU_PSYS_EVENT_TYPE_BUFFER_COMPLETE	2
++
++/**
++ * struct ipu_psys_buffer - for input/output terminals
++ * @len:	total allocated size @ base address
++ * @userptr:	user pointer
++ * @fd:		DMA-BUF handle
++ * @data_offset:offset to valid data
++ * @bytes_used:	amount of valid data including offset
++ * @flags:	flags
++ */
++struct ipu_psys_buffer {
++	uint64_t len;
++	union {
++		int fd;
++		void __user *userptr;
++		uint64_t reserved;
++	} base;
++	uint32_t data_offset;
++	uint32_t bytes_used;
++	uint32_t flags;
++	uint32_t reserved[2];
++} __attribute__ ((packed));
++
++#define IPU_BUFFER_FLAG_INPUT	(1 << 0)
++#define IPU_BUFFER_FLAG_OUTPUT	(1 << 1)
++#define IPU_BUFFER_FLAG_MAPPED	(1 << 2)
++#define IPU_BUFFER_FLAG_NO_FLUSH	(1 << 3)
++#define IPU_BUFFER_FLAG_DMA_HANDLE	(1 << 4)
++#define IPU_BUFFER_FLAG_USERPTR	(1 << 5)
++
++#define	IPU_PSYS_CMD_PRIORITY_HIGH	0
++#define	IPU_PSYS_CMD_PRIORITY_MED	1
++#define	IPU_PSYS_CMD_PRIORITY_LOW	2
++#define	IPU_PSYS_CMD_PRIORITY_NUM	3
++
++/**
++ * struct ipu_psys_command - processing command
++ * @issue_id:		unique id for the command set by user
++ * @user_token:		token of the command
++ * @priority:		priority of the command
++ * @pg_manifest:	userspace pointer to program group manifest
++ * @buffers:		userspace pointers to array of psys dma buf structs
++ * @pg:			process group DMA-BUF handle
++ * @pg_manifest_size:	size of program group manifest
++ * @bufcount:		number of buffers in buffers array
++ * @min_psys_freq:	minimum psys frequency in MHz used for this cmd
++ *
++ * Specifies a processing command with input and output buffers.
++ */
++struct ipu_psys_command {
++	uint64_t issue_id;
++	uint64_t user_token;
++	uint32_t priority;
++	void __user *pg_manifest;
++	struct ipu_psys_buffer __user *buffers;
++	int pg;
++	uint32_t pg_manifest_size;
++	uint32_t bufcount;
++	uint32_t min_psys_freq;
++	uint32_t frame_counter;
++	uint32_t reserved[2];
++} __attribute__ ((packed));
++
++struct ipu_psys_manifest {
++	uint32_t index;
++	uint32_t size;
++	void __user *manifest;
++	uint32_t reserved[5];
++} __attribute__ ((packed));
++
++#define IPU_IOC_QUERYCAP _IOR('A', 1, struct ipu_psys_capability)
++#define IPU_IOC_MAPBUF _IOWR('A', 2, int)
++#define IPU_IOC_UNMAPBUF _IOWR('A', 3, int)
++#define IPU_IOC_GETBUF _IOWR('A', 4, struct ipu_psys_buffer)
++#define IPU_IOC_PUTBUF _IOWR('A', 5, struct ipu_psys_buffer)
++#define IPU_IOC_QCMD _IOWR('A', 6, struct ipu_psys_command)
++#define IPU_IOC_DQEVENT _IOWR('A', 7, struct ipu_psys_event)
++#define IPU_IOC_CMD_CANCEL _IOWR('A', 8, struct ipu_psys_command)
++#define IPU_IOC_GET_MANIFEST _IOWR('A', 9, struct ipu_psys_manifest)
++
++#endif /* _UAPI_IPU_PSYS_H */
+diff --git a/include/uapi/linux/media.h b/include/uapi/linux/media.h
+index 1c80b1d6bbaf..034a4b0c9c5d 100644
+--- a/include/uapi/linux/media.h
++++ b/include/uapi/linux/media.h
+@@ -208,6 +208,7 @@ struct media_entity_desc {
+ #define MEDIA_PAD_FL_SINK			(1U << 0)
+ #define MEDIA_PAD_FL_SOURCE			(1U << 1)
+ #define MEDIA_PAD_FL_MUST_CONNECT		(1U << 2)
++#define MEDIA_PAD_FL_MULTIPLEX         (1 << 3)
+ 
+ struct media_pad_desc {
+ 	__u32 entity;		/* entity ID */
+diff --git a/include/uapi/linux/v4l2-controls.h b/include/uapi/linux/v4l2-controls.h
+index 974fd254e573..9c8c66a9c240 100644
+--- a/include/uapi/linux/v4l2-controls.h
++++ b/include/uapi/linux/v4l2-controls.h
+@@ -1214,6 +1214,11 @@ enum v4l2_jpeg_chroma_subsampling {
+ #define V4L2_CID_UNIT_CELL_SIZE			(V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 8)
+ #define V4L2_CID_NOTIFY_GAINS			(V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 9)
+ 
++#define V4L2_CID_MIPI_LANES         (V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 64)
++#define V4L2_CID_WDR_MODE           (V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 65)
++#define V4L2_CID_PWM_DUTY           (V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 66)
++#define V4L2_CID_IRIS_MODE          (V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 67)
++#define V4L2_CID_IRIS_STEP          (V4L2_CID_IMAGE_SOURCE_CLASS_BASE + 68)
+ 
+ /* Image processing controls */
+ 
+diff --git a/include/uapi/linux/v4l2-subdev.h b/include/uapi/linux/v4l2-subdev.h
+index 2347e266cf75..981bc0c6eff0 100644
+--- a/include/uapi/linux/v4l2-subdev.h
++++ b/include/uapi/linux/v4l2-subdev.h
+@@ -79,6 +79,9 @@ struct v4l2_subdev_crop {
+  * @stream: stream number, defined in subdev routing
+  * @reserved: drivers and applications must zero this array
+  */
++
++#define V4L2_SUBDEV_FLAG_NEXT_STREAM 0x80000000
++
+ struct v4l2_subdev_mbus_code_enum {
+ 	__u32 pad;
+ 	__u32 index;
+@@ -205,6 +208,9 @@ struct v4l2_subdev_capability {
+  */
+ #define V4L2_SUBDEV_ROUTE_FL_ACTIVE		(1U << 0)
+ 
++#define V4L2_SUBDEV_ROUTE_FL_IMMUTABLE	(1 << 1)
++#define V4L2_SUBDEV_ROUTE_FL_SOURCE	(1 << 2)
++
+ /**
+  * struct v4l2_subdev_route - A route inside a subdev
+  *
+@@ -300,5 +306,7 @@ struct v4l2_subdev_client_capability {
+ #define VIDIOC_SUBDEV_ENUM_DV_TIMINGS		_IOWR('V', 98, struct v4l2_enum_dv_timings)
+ #define VIDIOC_SUBDEV_QUERY_DV_TIMINGS		_IOR('V', 99, struct v4l2_dv_timings)
+ #define VIDIOC_SUBDEV_DV_TIMINGS_CAP		_IOWR('V', 100, struct v4l2_dv_timings_cap)
++#define VIDIOC_SUBDEV_G_ROUTING			_IOWR('V', 38, struct v4l2_subdev_routing)
++#define VIDIOC_SUBDEV_S_ROUTING			_IOWR('V', 39, struct v4l2_subdev_routing)
+ 
+ #endif
+diff --git a/include/uapi/linux/videodev2.h b/include/uapi/linux/videodev2.h
+index 27239cb64065..4562c9848cda 100644
+--- a/include/uapi/linux/videodev2.h
++++ b/include/uapi/linux/videodev2.h
+@@ -735,6 +735,31 @@ struct v4l2_pix_format {
+ #define V4L2_PIX_FMT_SGRBG16 v4l2_fourcc('G', 'R', '1', '6') /* 16  GRGR.. BGBG.. */
+ #define V4L2_PIX_FMT_SRGGB16 v4l2_fourcc('R', 'G', '1', '6') /* 16  RGRG.. GBGB.. */
+ 
++/* Raw bayer vector formats. */
++#define V4L2_PIX_FMT_SBGGR8_16V32      v4l2_fourcc('b', 'V', '0', 'A')
++#define V4L2_PIX_FMT_SGBRG8_16V32      v4l2_fourcc('b', 'V', '0', 'B')
++#define V4L2_PIX_FMT_SGRBG8_16V32      v4l2_fourcc('b', 'V', '0', 'C')
++#define V4L2_PIX_FMT_SRGGB8_16V32      v4l2_fourcc('b', 'V', '0', 'D')
++#define V4L2_PIX_FMT_SBGGR10V32                v4l2_fourcc('b', 'V', '0', 'E')
++#define V4L2_PIX_FMT_SGBRG10V32                v4l2_fourcc('b', 'V', '0', 'F')
++#define V4L2_PIX_FMT_SGRBG10V32                v4l2_fourcc('b', 'V', '0', 'G')
++#define V4L2_PIX_FMT_SRGGB10V32                v4l2_fourcc('b', 'V', '0', 'H')
++#define V4L2_PIX_FMT_SBGGR12V32                v4l2_fourcc('b', 'V', '0', 'I')
++#define V4L2_PIX_FMT_SGBRG12V32                v4l2_fourcc('b', 'V', '0', 'J')
++#define V4L2_PIX_FMT_SGRBG12V32                v4l2_fourcc('b', 'V', '0', 'K')
++#define V4L2_PIX_FMT_SRGGB12V32                v4l2_fourcc('b', 'V', '0', 'L')
++
++/* BEGIN remove once the user space has been updated */
++#define V4L2_PIX_FMT_SBGGR8V32 v4l2_fourcc('b', 'V', '0', 'A')
++#define V4L2_PIX_FMT_SGBRG8V32 v4l2_fourcc('b', 'V', '0', 'B')
++#define V4L2_PIX_FMT_SGRBG8V32 v4l2_fourcc('b', 'V', '0', 'C')
++#define V4L2_PIX_FMT_SRGGB8V32 v4l2_fourcc('b', 'V', '0', 'D')
++/* END remove once the user space has been updated */
++
++/* YUV vector formats. */
++#define V4L2_PIX_FMT_UYVY_V32          v4l2_fourcc('y', 'V', '3', '2')
++#define V4L2_PIX_FMT_YUYV420_V32       v4l2_fourcc('y', '0', '3', '2')
++
+ /* HSV formats */
+ #define V4L2_PIX_FMT_HSV24 v4l2_fourcc('H', 'S', 'V', '3')
+ #define V4L2_PIX_FMT_HSV32 v4l2_fourcc('H', 'S', 'V', '4')
+-- 
+2.43.0
+

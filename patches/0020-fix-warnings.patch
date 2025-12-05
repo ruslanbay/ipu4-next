@@ -1,0 +1,41 @@
+From 1c42ebe109b9d33695dd7df7ee628c9306661372 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Thu, 4 Dec 2025 13:14:38 +0100
+Subject: [PATCH 20/21] fix: warnings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+drivers/media/pci/intel/ipu4/ipu4-psys.c:190:6: warning: no previous prototype for ‘ipu_psys_kcmd_free’ [-Wmissing-prototypes]
+  190 | void ipu_psys_kcmd_free(struct ipu_psys_kcmd *kcmd)
+drivers/media/pci/intel/ipu4/ipu4-psys.c:363:6: warning: no previous prototype for ‘ipu_psys_kcmd_complete’ [-Wmissing-prototypes]
+  363 | void ipu_psys_kcmd_complete(struct ipu_psys *psys,
+---
+ drivers/media/pci/intel/ipu4/ipu4-psys.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu4/ipu4-psys.c b/drivers/media/pci/intel/ipu4/ipu4-psys.c
+index 34a59e84c496..c5e56f0c57e9 100644
+--- a/drivers/media/pci/intel/ipu4/ipu4-psys.c
++++ b/drivers/media/pci/intel/ipu4/ipu4-psys.c
+@@ -187,7 +187,7 @@ void ipu_psys_setup_hw(struct ipu_psys *psys)
+  * Called to free up all resources associated with a kcmd.
+  * After this the kcmd doesn't anymore exist in the driver.
+  */
+-void ipu_psys_kcmd_free(struct ipu_psys_kcmd *kcmd)
++static void ipu_psys_kcmd_free(struct ipu_psys_kcmd *kcmd)
+ {
+ 	struct ipu_psys *psys;
+ 	unsigned long flags;
+@@ -360,7 +360,7 @@ static void ipu_psys_kcmd_run(struct ipu_psys *psys)
+  * Move kcmd into completed state (due to running finished or failure).
+  * Fill up the event struct and notify waiters.
+  */
+-void ipu_psys_kcmd_complete(struct ipu_psys *psys,
++static void ipu_psys_kcmd_complete(struct ipu_psys *psys,
+ 				   struct ipu_psys_kcmd *kcmd, int error)
+ {
+ 	struct ipu_psys_fh *fh = kcmd->fh;
+-- 
+2.43.0
+

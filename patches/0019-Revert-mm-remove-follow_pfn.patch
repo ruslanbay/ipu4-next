@@ -1,0 +1,103 @@
+From 697cd78c670f67099d306686197ab4b31eddb9fc Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Thu, 4 Dec 2025 13:00:27 +0100
+Subject: [PATCH 19/21] Revert "mm: remove follow_pfn"
+
+This reverts commit cb10c28ac82c9b7a5e9b3b1dc7157036c20c36dd.
+---
+ include/linux/mm.h |  2 ++
+ mm/memory.c        | 32 ++++++++++++++++++++++++++++++++
+ mm/nommu.c         | 21 +++++++++++++++++++++
+ 3 files changed, 55 insertions(+)
+
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index b83c78a8f15b..124360292943 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -2440,6 +2440,8 @@ int
+ copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma);
+ int follow_pte(struct vm_area_struct *vma, unsigned long address,
+ 	       pte_t **ptepp, spinlock_t **ptlp);
++int follow_pfn(struct vm_area_struct *vma, unsigned long address,
++	unsigned long *pfn);
+ int generic_access_phys(struct vm_area_struct *vma, unsigned long addr,
+ 			void *buf, int len, int write);
+ 
+diff --git a/mm/memory.c b/mm/memory.c
+index b86b5f444491..b707878e916d 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -6440,6 +6440,38 @@ int follow_pte(struct vm_area_struct *vma, unsigned long address,
+ }
+ EXPORT_SYMBOL_GPL(follow_pte);
+ 
++/**
++ * follow_pfn - look up PFN at a user virtual address
++ * @vma: memory mapping
++ * @address: user virtual address
++ * @pfn: location to store found PFN
++ *
++ * Only IO mappings and raw PFN mappings are allowed.
++ *
++ * This function does not allow the caller to read the permissions
++ * of the PTE.  Do not use it.
++ *
++ * Return: zero and the pfn at @pfn on success, -ve otherwise.
++ */
++int follow_pfn(struct vm_area_struct *vma, unsigned long address,
++	unsigned long *pfn)
++{
++	int ret = -EINVAL;
++	spinlock_t *ptl;
++	pte_t *ptep;
++
++	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP)))
++		return ret;
++
++	ret = follow_pte(vma, address, &ptep, &ptl);
++	if (ret)
++		return ret;
++	*pfn = pte_pfn(ptep_get(ptep));
++	pte_unmap_unlock(ptep, ptl);
++	return 0;
++}
++EXPORT_SYMBOL(follow_pfn);
++
+ static inline void pfnmap_args_setup(struct follow_pfnmap_args *args,
+ 				     spinlock_t *lock, pte_t *ptep,
+ 				     pgprot_t pgprot, unsigned long pfn_base,
+diff --git a/mm/nommu.c b/mm/nommu.c
+index 9cb6e99215e2..942f6acc0720 100644
+--- a/mm/nommu.c
++++ b/mm/nommu.c
+@@ -110,6 +110,27 @@ unsigned int kobjsize(const void *objp)
+ 	return page_size(page);
+ }
+ 
++/**
++ * follow_pfn - look up PFN at a user virtual address
++ * @vma: memory mapping
++ * @address: user virtual address
++ * @pfn: location to store found PFN
++ *
++ * Only IO mappings and raw PFN mappings are allowed.
++ *
++ * Returns zero and the pfn at @pfn on success, -ve otherwise.
++ */
++int follow_pfn(struct vm_area_struct *vma, unsigned long address,
++	unsigned long *pfn)
++{
++	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP)))
++		return -EINVAL;
++
++	*pfn = address >> PAGE_SHIFT;
++	return 0;
++}
++EXPORT_SYMBOL(follow_pfn);
++
+ void vfree(const void *addr)
+ {
+ 	kfree(addr);
+-- 
+2.43.0
+

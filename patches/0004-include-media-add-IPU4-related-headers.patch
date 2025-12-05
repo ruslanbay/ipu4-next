@@ -1,0 +1,339 @@
+From 09b9fec525af1b241b9903b39629a070bd38f60c Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 13:52:47 +0100
+Subject: [PATCH 04/21] include/media: add IPU4 related headers
+
+---
+ drivers/media/pci/intel/ipu-isys-csi2.c |   2 +-
+ include/media/ipu-isys.h                |  38 +++++++
+ include/media/ipu4-acpi.h               |  27 +++++
+ include/media/v4l2-subdev.h             | 143 +++++++++++++++++++++++-
+ 4 files changed, 208 insertions(+), 2 deletions(-)
+ create mode 100644 include/media/ipu-isys.h
+ create mode 100644 include/media/ipu4-acpi.h
+
+diff --git a/drivers/media/pci/intel/ipu-isys-csi2.c b/drivers/media/pci/intel/ipu-isys-csi2.c
+index 79cb52692b84..51fc95d49275 100644
+--- a/drivers/media/pci/intel/ipu-isys-csi2.c
++++ b/drivers/media/pci/intel/ipu-isys-csi2.c
+@@ -673,7 +673,7 @@ int ipu_isys_csi2_init(struct ipu_isys_csi2 *csi2,
+ 				    NR_OF_CSI2_STREAMS,
+ 				    NR_OF_CSI2_SOURCE_PADS,
+ 				    NR_OF_CSI2_SINK_PADS,
+-				    V4L2_SUBDEV_FL_HAS_SUBSTREAMS);
++				    V4L2_SUBDEV_FL_STREAMS);
+ 	if (rval)
+ 		goto fail;
+ 
+diff --git a/include/media/ipu-isys.h b/include/media/ipu-isys.h
+new file mode 100644
+index 000000000000..b2acb94a1fb1
+--- /dev/null
++++ b/include/media/ipu-isys.h
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/* Copyright (C) 2014 - 2018 Intel Corporation */
++
++#ifndef MEDIA_IPU_H
++#define MEDIA_IPU_H
++
++#include <linux/i2c.h>
++#include <linux/clkdev.h>
++
++#define IPU_ISYS_MAX_CSI2_LANES		4
++
++struct ipu_isys_csi2_config {
++	unsigned int nlanes;
++	unsigned int port;
++};
++
++struct ipu_isys_subdev_i2c_info {
++	struct i2c_board_info board_info;
++	int i2c_adapter_id;
++};
++
++struct ipu_isys_subdev_info {
++	struct ipu_isys_csi2_config *csi2;
++	struct ipu_isys_subdev_i2c_info i2c;
++	char *acpiname;
++};
++
++struct ipu_isys_clk_mapping {
++	struct clk_lookup clkdev_data;
++	char *platform_clock_name;
++};
++
++struct ipu_isys_subdev_pdata {
++	struct ipu_isys_subdev_info **subdevs;
++	struct ipu_isys_clk_mapping *clk_map;
++};
++
++#endif /* MEDIA_IPU_H */
+diff --git a/include/media/ipu4-acpi.h b/include/media/ipu4-acpi.h
+new file mode 100644
+index 000000000000..b4c3611664f7
+--- /dev/null
++++ b/include/media/ipu4-acpi.h
+@@ -0,0 +1,27 @@
++/* SPDX-LIcense_Identifier: GPL-2.0 */
++/* Copyright (C) 2016 - 2018 Intel Corporation */
++
++#ifndef MEDIA_INTEL_IPU4_ACPI_H
++#define MEDIA_INTEL_IPU4_ACPI_H
++
++#include <media/ipu-isys.h>
++#include "ipu-isys.h"
++
++int ipu_get_acpi_devices(void *driver_data,
++				struct device *dev,
++				int (*fn)
++				(struct device *, void *,
++				 struct ipu_isys_csi2_config *csi2,
++				 bool reprobe));
++
++struct ipu_regulator {
++	char *src_dev_name;
++	char *src_rail;
++	char *dest_rail;
++};
++
++/* These can be override by plarform data. */
++extern const struct ipu_regulator imx230regulators[] __weak;
++extern const struct ipu_regulator ov8858regulators[] __weak;
++
++#endif
+diff --git a/include/media/v4l2-subdev.h b/include/media/v4l2-subdev.h
+index d0746e2c869a..7c96dca3daf6 100644
+--- a/include/media/v4l2-subdev.h
++++ b/include/media/v4l2-subdev.h
+@@ -347,8 +347,13 @@ enum v4l2_mbus_frame_desc_flags {
+  *
+  * @flags:	bitmask flags, as defined by &enum v4l2_mbus_frame_desc_flags.
+  * @stream:	stream in routing configuration
++ * @bpp: bits per pixel
+  * @pixelcode:	media bus pixel code, valid if @flags
+  *		%FRAME_DESC_FL_BLOB is not set.
++ * @start_line: start line of the data for 2D DMA
++ * @start_pixel: start pixel of the data for 2D DMA
++ * @width: image width for 2D DMA
++ * @height: image height for 2D DMA
+  * @length:	number of octets per frame, valid if @flags
+  *		%V4L2_MBUS_FRAME_DESC_FL_LEN_MAX is set.
+  * @bus:	Bus-specific frame descriptor parameters
+@@ -357,8 +362,17 @@ enum v4l2_mbus_frame_desc_flags {
+ struct v4l2_mbus_frame_desc_entry {
+ 	enum v4l2_mbus_frame_desc_flags flags;
+ 	u32 stream;
++	u8 bpp;
+ 	u32 pixelcode;
+-	u32 length;
++	union {
++		struct {
++			u16 start_line;
++			u16 start_pixel;
++			u16 width;
++			u16 height;
++		} two_dim;
++		u32 length;
++	};
+ 	union {
+ 		struct v4l2_mbus_frame_desc_entry_csi2 csi2;
+ 	} bus;
+@@ -384,7 +398,9 @@ struct v4l2_mbus_frame_desc_entry {
+  */
+ enum v4l2_mbus_frame_desc_type {
+ 	V4L2_MBUS_FRAME_DESC_TYPE_UNDEFINED = 0,
++	V4L2_MBUS_FRAME_DESC_TYPE_PLATFORM,
+ 	V4L2_MBUS_FRAME_DESC_TYPE_PARALLEL,
++	V4L2_MBUS_FRAME_DESC_TYPE_CCP2,
+ 	V4L2_MBUS_FRAME_DESC_TYPE_CSI2,
+ };
+ 
+@@ -461,6 +477,20 @@ enum v4l2_subdev_pre_streamon_flags {
+  *
+  * @g_pixelaspect: callback to return the pixelaspect ratio.
+  *
++ * @g_frame_interval: callback for VIDIOC_SUBDEV_G_FRAME_INTERVAL()
++ *		      ioctl handler code.
++ *
++ * @s_frame_interval: callback for VIDIOC_SUBDEV_S_FRAME_INTERVAL()
++ *		      ioctl handler code.
++ *
++ * @s_dv_timings: Set custom dv timings in the sub device. This is used
++ *	when sub device is capable of setting detailed timing information
++ *	in the hardware to generate/detect the video signal.
++ *
++ * @g_dv_timings: Get custom dv timings in the sub device.
++ *
++ * @query_dv_timings: callback for VIDIOC_QUERY_DV_TIMINGS() ioctl handler code.
++ *
+  * @s_rx_buffer: set a host allocated memory buffer for the subdev. The subdev
+  *	can adjust @size to a lower value and must not write more data to the
+  *	buffer starting at @data than the original value of @size.
+@@ -491,6 +521,16 @@ struct v4l2_subdev_video_ops {
+ 	int (*g_input_status)(struct v4l2_subdev *sd, u32 *status);
+ 	int (*s_stream)(struct v4l2_subdev *sd, int enable);
+ 	int (*g_pixelaspect)(struct v4l2_subdev *sd, struct v4l2_fract *aspect);
++	int (*g_frame_interval)(struct v4l2_subdev *sd,
++				struct v4l2_subdev_frame_interval *interval);
++	int (*s_frame_interval)(struct v4l2_subdev *sd,
++				struct v4l2_subdev_frame_interval *interval);
++	int (*s_dv_timings)(struct v4l2_subdev *sd,
++			struct v4l2_dv_timings *timings);
++	int (*g_dv_timings)(struct v4l2_subdev *sd,
++			struct v4l2_dv_timings *timings);
++	int (*query_dv_timings)(struct v4l2_subdev *sd,
++			struct v4l2_dv_timings *timings);
+ 	int (*s_rx_buffer)(struct v4l2_subdev *sd, void *buf,
+ 			   unsigned int *size);
+ 	int (*pre_streamon)(struct v4l2_subdev *sd, u32 flags);
+@@ -762,6 +802,7 @@ struct v4l2_subdev_state {
+ /**
+  * struct v4l2_subdev_pad_ops - v4l2-subdev pad level operations
+  *
++ * @init_cfg: initialize the pad config to default values
+  * @enum_mbus_code: callback for VIDIOC_SUBDEV_ENUM_MBUS_CODE() ioctl handler
+  *		    code.
+  * @enum_frame_size: callback for VIDIOC_SUBDEV_ENUM_FRAME_SIZE() ioctl handler
+@@ -840,8 +881,21 @@ struct v4l2_subdev_state {
+  *	state management provided by the subdev core (enabled through a call to
+  *	v4l2_subdev_init_finalize() at initialization time). Do not call
+  *	directly, use v4l2_subdev_disable_streams() instead.
++ *
++ * @set_mbus_config: set the media bus configuration of a remote sub-device.
++ *		     This operations is intended to allow, in combination with
++ *		     the get_mbus_config operation, the negotiation of media bus
++ *		     configuration parameters between media sub-devices. The
++ *		     operation shall not fail if the requested configuration is
++ *		     not supported, but the driver shall update the content of
++ *		     the %config argument to reflect what has been actually
++ *		     applied to the hardware. The operation shall fail if the
++ *		     pad index it has been called on is not valid or in case of
++ *		     unrecoverable failures.
+  */
+ struct v4l2_subdev_pad_ops {
++	int (*init_cfg)(struct v4l2_subdev *sd,
++			struct v4l2_subdev_state *state);
+ 	int (*enum_mbus_code)(struct v4l2_subdev *sd,
+ 			      struct v4l2_subdev_state *state,
+ 			      struct v4l2_subdev_mbus_code_enum *code);
+@@ -890,8 +944,14 @@ struct v4l2_subdev_pad_ops {
+ 			      struct v4l2_mbus_frame_desc *fd);
+ 	int (*set_frame_desc)(struct v4l2_subdev *sd, unsigned int pad,
+ 			      struct v4l2_mbus_frame_desc *fd);
++	int (*get_routing)(struct v4l2_subdev *sd,
++			   struct v4l2_subdev_routing *route);
++	int (*set_routing)(struct v4l2_subdev *sd,
++			   struct v4l2_subdev_routing *route);
+ 	int (*get_mbus_config)(struct v4l2_subdev *sd, unsigned int pad,
+ 			       struct v4l2_mbus_config *config);
++	int (*set_mbus_config)(struct v4l2_subdev *sd, unsigned int pad,
++			       struct v4l2_mbus_config *config);
+ 	int (*set_routing)(struct v4l2_subdev *sd,
+ 			   struct v4l2_subdev_state *state,
+ 			   enum v4l2_subdev_format_whence which,
+@@ -1040,6 +1100,8 @@ struct v4l2_subdev_platform_data {
+  *		@notifier->done_list list.
+  * @async_subdev_endpoint_list: List entry in async_subdev_endpoint_entry of
+  *				&struct v4l2_async_subdev_endpoint.
++ * @asd: Pointer to respective &struct v4l2_async_subdev.
++ * @notifier: Pointer to the managing notifier.
+  * @subdev_notifier: A sub-device notifier implicitly registered for the sub-
+  *		     device using v4l2_async_register_subdev_sensor().
+  * @asc_list: Async connection list, of &struct
+@@ -1085,6 +1147,8 @@ struct v4l2_subdev {
+ 	struct fwnode_handle *fwnode;
+ 	struct list_head async_list;
+ 	struct list_head async_subdev_endpoint_list;
++	struct v4l2_async_subdev *asd;
++	struct v4l2_async_notifier *notifier;
+ 	struct v4l2_async_notifier *subdev_notifier;
+ 	struct list_head asc_list;
+ 	struct v4l2_subdev_platform_data *pdata;
+@@ -1159,6 +1223,83 @@ struct v4l2_subdev_fh {
+ #define to_v4l2_subdev_fh(fh)	\
+ 	container_of(fh, struct v4l2_subdev_fh, vfh)
+ 
++#if defined(CONFIG_VIDEO_V4L2_SUBDEV_API)
++
++/**
++ * v4l2_subdev_get_pad_format - ancillary routine to call
++ *	&struct v4l2_subdev_pad_config->try_fmt
++ *
++ * @sd: pointer to &struct v4l2_subdev
++ * @state: pointer to &struct v4l2_subdev_state
++ * @pad: index of the pad in the &struct v4l2_subdev_state->pads array
++ */
++static inline struct v4l2_mbus_framefmt *
++v4l2_subdev_get_pad_format(struct v4l2_subdev *sd,
++			   struct v4l2_subdev_state *state,
++			   unsigned int pad)
++{
++	if (WARN_ON(!state))
++		return NULL;
++	if (WARN_ON(pad >= sd->entity.num_pads))
++		pad = 0;
++	return &state->pads[pad].try_fmt;
++}
++
++/**
++ * v4l2_subdev_get_pad_crop - ancillary routine to call
++ *	&struct v4l2_subdev_pad_config->try_crop
++ *
++ * @sd: pointer to &struct v4l2_subdev
++ * @state: pointer to &struct v4l2_subdev_state.
++ * @pad: index of the pad in the &struct v4l2_subdev_state->pads array.
++ */
++static inline struct v4l2_rect *
++v4l2_subdev_get_pad_crop(struct v4l2_subdev *sd,
++			 struct v4l2_subdev_state *state,
++			 unsigned int pad)
++{
++	if (WARN_ON(!state))
++		return NULL;
++	if (WARN_ON(pad >= sd->entity.num_pads))
++		pad = 0;
++	return &state->pads[pad].try_crop;
++}
++
++/**
++ * v4l2_subdev_get_pad_compose - ancillary routine to call
++ *	&struct v4l2_subdev_pad_config->try_compose
++ *
++ * @sd: pointer to &struct v4l2_subdev
++ * @state: pointer to &struct v4l2_subdev_state.
++ * @pad: index of the pad in the &struct v4l2_subdev_state->pads array.
++ */
++static inline struct v4l2_rect *
++v4l2_subdev_get_pad_compose(struct v4l2_subdev *sd,
++			    struct v4l2_subdev_state *state,
++			    unsigned int pad)
++{
++	if (WARN_ON(!state))
++		return NULL;
++	if (WARN_ON(pad >= sd->entity.num_pads))
++		pad = 0;
++	return &state->pads[pad].try_compose;
++}
++
++/*
++ * Temprary helpers until uses of v4l2_subdev_get_try_* functions have been
++ * renamed
++ */
++#define v4l2_subdev_get_try_format(sd, state, pad) \
++	v4l2_subdev_get_pad_format(sd, state, pad)
++
++#define v4l2_subdev_get_try_crop(sd, state, pad) \
++	v4l2_subdev_get_pad_crop(sd, state, pad)
++
++#define v4l2_subdev_get_try_compose(sd, state, pad) \
++	v4l2_subdev_get_pad_compose(sd, state, pad)
++
++#endif /* CONFIG_VIDEO_V4L2_SUBDEV_API */
++
+ extern const struct v4l2_file_operations v4l2_subdev_fops;
+ 
+ /**
+-- 
+2.43.0
+

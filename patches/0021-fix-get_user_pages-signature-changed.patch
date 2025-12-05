@@ -1,0 +1,25 @@
+From 3df0144794e1e9d095da6e64689eaaad2fa91643 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Thu, 4 Dec 2025 13:18:40 +0100
+Subject: [PATCH 21/21] fix: get_user_pages signature changed
+
+---
+ drivers/media/pci/intel/ipu-psys.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/pci/intel/ipu-psys.c b/drivers/media/pci/intel/ipu-psys.c
+index b0e19cb40d1d..2a22e6e4ab24 100644
+--- a/drivers/media/pci/intel/ipu-psys.c
++++ b/drivers/media/pci/intel/ipu-psys.c
+@@ -198,7 +198,7 @@ static int ipu_psys_get_userpages(struct ipu_dma_buf_attach *attach)
+ 		nr = get_user_pages(
+ 				   start & PAGE_MASK, npages,
+ 				   FOLL_WRITE,
+-				   pages, NULL);
++				   pages);
+ 		if (nr < npages)
+ 			goto error_up_read;
+ 	}
+-- 
+2.43.0
+

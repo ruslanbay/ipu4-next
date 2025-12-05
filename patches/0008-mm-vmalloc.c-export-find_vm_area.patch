@@ -1,0 +1,24 @@
+From 85e19874e6ea304d7e8c3076617d47c4c7aec272 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 14:13:47 +0100
+Subject: [PATCH 08/21] mm/vmalloc.c: export find_vm_area
+
+---
+ mm/vmalloc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 3519c4e4f841..9ad7adcaf0e2 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -3214,6 +3214,7 @@ struct vm_struct *find_vm_area(const void *addr)
+ 
+ 	return va->vm;
+ }
++EXPORT_SYMBOL(find_vm_area);
+ 
+ /**
+  * remove_vm_area - find and remove a continuous kernel virtual area
+-- 
+2.43.0
+

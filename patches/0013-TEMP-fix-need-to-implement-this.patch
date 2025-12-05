@@ -1,0 +1,26 @@
+From cb7ad65c6c63bed20e0a5cf28ddd291f0e8d8b28 Mon Sep 17 00:00:00 2001
+From: ruslanbay <67730802+ruslanbay@users.noreply.github.com>
+Date: Wed, 3 Dec 2025 16:19:12 +0100
+Subject: [PATCH 13/21] TEMP fix: need to implement this:
+
+https://github.com/torvalds/linux/commit/daabc5c64703432c4a8798421a3588c2c142c51b#diff-23d46ada48e4de0dbef0b8619b832217e2624945f46c492a46c3907ab913f03e
+---
+ drivers/media/pci/intel/ipu-bus.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/pci/intel/ipu-bus.c b/drivers/media/pci/intel/ipu-bus.c
+index 7d48bd3a7dd1..1bcafde4f52a 100644
+--- a/drivers/media/pci/intel/ipu-bus.c
++++ b/drivers/media/pci/intel/ipu-bus.c
+@@ -322,7 +322,7 @@ struct ipu_bus_device *ipu_bus_add_device(struct pci_dev *pdev,
+ 	adev->dev.parent = parent;
+ 	adev->dev.bus = &ipu_bus;
+ 	adev->dev.release = ipu_bus_release;
+-	adev->dev.dma_ops = &ipu_dma_ops;
++	// adev->dev.dma_ops = &ipu_dma_ops;
+ 	adev->dma_mask = DMA_BIT_MASK(isp->secure_mode ?
+ 				      IPU_MMU_ADDRESS_BITS :
+ 				      IPU_MMU_ADDRESS_BITS_NON_SECURE);
+-- 
+2.43.0
+

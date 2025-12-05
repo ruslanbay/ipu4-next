@@ -1,0 +1,38 @@
+Format: 1.8
+Date: Thu, 04 Dec 2025 15:04:04 +0100
+Source: linux-upstream
+Binary: linux-headers-6.12.60-ipu4p linux-image-6.12.60-ipu4p linux-image-6.12.60-ipu4p-dbg linux-libc-dev
+Built-For-Profiles: noudeb
+Architecture: amd64
+Version: 6.12.60-g3df0144794e1-37
+Distribution: noble
+Urgency: low
+Maintainer: user <user@iPhone14>
+Changed-By: user <user@iPhone14>
+Description:
+ linux-headers-6.12.60-ipu4p - Linux kernel headers for 6.12.60-ipu4p on amd64
+ linux-image-6.12.60-ipu4p - Linux kernel, version 6.12.60-ipu4p
+ linux-image-6.12.60-ipu4p-dbg - Linux kernel debugging symbols for 6.12.60-ipu4p
+ linux-libc-dev - Linux support headers for userspace development
+Changes:
+ linux-upstream (6.12.60-g3df0144794e1-37) noble; urgency=low
+ .
+   * Custom built Linux kernel.
+Checksums-Sha1:
+ 693fa6c4c6174c12d5e8ef1b665e87c3f8203cd5 9286648 linux-headers-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ 0b760e6c98162a1f9d5c47d0b5c79b4f5f84561a 235509604 linux-image-6.12.60-ipu4p-dbg_6.12.60-g3df0144794e1-37_amd64.deb
+ cf164ff995cf7d050d939ff13d3481b5fcbf2dda 25638278 linux-image-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ a08d97dccd6212e4cd91d5a419aae995dd018cc3 1443916 linux-libc-dev_6.12.60-g3df0144794e1-37_amd64.deb
+ edd1d5c87e1f27b6ae76314717614596149eb6a4 9255 linux-upstream_6.12.60-g3df0144794e1-37_amd64.buildinfo
+Checksums-Sha256:
+ a8717dccebc49d0b6c584db93893827170995dd349735af26bdf28136a51ebfa 9286648 linux-headers-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ def939e0c53bc12a6dc707e90e335354460920702643f9e5e7aba36c73dd6f7d 235509604 linux-image-6.12.60-ipu4p-dbg_6.12.60-g3df0144794e1-37_amd64.deb
+ 55738df8144efd8dc64e66ceebf67822e50a0823447025762c210412af81d244 25638278 linux-image-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ 7e49867248fc746407a76e42562a46a259e5d49c2de9fafcf5d332170c05946a 1443916 linux-libc-dev_6.12.60-g3df0144794e1-37_amd64.deb
+ bf4997d0ddd6056ae40a0bb17c55343a2ff8dd5caaa4b5dd21f658548925aed9 9255 linux-upstream_6.12.60-g3df0144794e1-37_amd64.buildinfo
+Files:
+ 935e8199f9194cf937c9d14c833dc5ab 9286648 kernel optional linux-headers-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ 3e46b421c287ab610b0faa7e2516d41b 235509604 debug optional linux-image-6.12.60-ipu4p-dbg_6.12.60-g3df0144794e1-37_amd64.deb
+ 7d2666b2cfb13c538cd11e3a4817847c 25638278 kernel optional linux-image-6.12.60-ipu4p_6.12.60-g3df0144794e1-37_amd64.deb
+ de580cde07fd7745e5cef413b80209fd 1443916 devel optional linux-libc-dev_6.12.60-g3df0144794e1-37_amd64.deb
+ ea4f92038914d514e3c1fcf0a8bc96c5 9255 kernel optional linux-upstream_6.12.60-g3df0144794e1-37_amd64.buildinfo
